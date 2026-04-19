@@ -30,8 +30,7 @@
     },
     "plugins": [
       "expo-font",
-      "expo-localization",
-      "react-native-svg"
+      "expo-localization"
     ],
     "extra": {
       "eas": {
