@@ -1,7 +1,43 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
-    "version": "1.0.0"
+    "name": "قلب السور",
+    "slug": "quran-heart-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FBF8F1"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.aidarvalievrin.quranheart"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FBF8F1"
+      },
+      "package": "com.aidarvalievrin.quranheart",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-font",
+      "expo-localization",
+      "react-native-svg"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "aebab272-8790-46ea-8e78-dd078a3b4dde"
+      }
+    },
+    "owner": "wmoon"
   }
 }
