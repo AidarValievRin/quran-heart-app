@@ -13,6 +13,7 @@ export interface Surah {
   number: number;    // same as id, 1-indexed
   nameAr: string;
   nameTranslit: string;
+  nameTranslitRu: string;
   nameRu: string;
   nameEn: string;
   revelationPlace: RevelationPlace;
