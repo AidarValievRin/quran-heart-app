@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { ClipPath, Defs, G, Path, Text as SvgText } from 'react-native-svg';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
@@ -49,16 +49,13 @@ export interface HeartMosaicProps {
   onSurahPress: (surahId: number) => void;
   onSurahLongPress: (surahId: number) => void;
   onCycleColorMode: (delta: number) => void;
-  /** Bump to reset pinch zoom to 1 */
   zoomResetRevision: number;
-  /** Stronger outline while sheet / modal references this surah */
   activeSurahId?: number | null;
 }
 
-function fitSecondaryLabel(text: string, maxChars: number): string {
+function fitLabel(text: string, maxChars: number): string {
   const t = text.trim();
-  if (t.length <= maxChars) return t;
-  return `${t.slice(0, Math.max(1, maxChars - 1))}…`;
+  return t.length <= maxChars ? t : `${t.slice(0, Math.max(1, maxChars - 1))}…`;
 }
 
 export const HeartMosaic: React.FC<HeartMosaicProps> = ({
@@ -71,23 +68,24 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   activeSurahId,
 }) => {
   const { width } = useWindowDimensions();
-  const canvasH = width * 1.08;
+  // Taller canvas to accommodate anatomical heart proportions
+  const canvasH = width * 1.35;
   const { i18n } = useTranslation();
   const { getSurahProgress } = useProgressStore();
   const [pressedId, setPressedId] = useState<number | null>(null);
 
-  const [fontsLoaded] = useFonts({
-    Amiri_400Regular,
-    Amiri_700Bold,
-  });
+  const [fontsLoaded] = useFonts({ Amiri_400Regular, Amiri_700Bold });
 
   const outlineD = useMemo(() => heartOutlinePath(width, canvasH), [width, canvasH]);
   const sites = useMemo(() => generateSurahSites(width, canvasH), [width, canvasH]);
-
   const polygons = useMemo(
     () => computeVoronoiPolygons(width, canvasH, sites),
     [sites, width, canvasH]
   );
+
+  // Keep a stable ref to sites for gesture callbacks (avoids re-creating gestures on every render)
+  const sitesRef = useRef(sites);
+  useEffect(() => { sitesRef.current = sites; }, [sites]);
 
   const statusColors = useMemo(
     () =>
@@ -102,33 +100,70 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
     [themeColors]
   );
 
-  const getFill = (surahId: number): string => {
-    const surah = SURAHS[surahId - 1];
-    if (colorMode === 'status') {
-      return statusColors[getSurahProgress(surahId).status];
-    }
-    if (colorMode === 'place') {
-      return surah.revelationPlace === 'meccan' ? '#E8D6A6' : '#CFE4D8';
-    }
-    if (colorMode === 'juz') {
-      return JUZ_COLORS[(surah.juzStart - 1) % 30];
-    }
-    const ratio = surah.ayahCount / 286;
-    const lightness = Math.round(90 - ratio * 45);
-    return `hsl(160, 35%, ${lightness}%)`;
-  };
+  const getFill = useCallback(
+    (surahId: number): string => {
+      const surah = SURAHS[surahId - 1];
+      if (colorMode === 'status') return statusColors[getSurahProgress(surahId).status];
+      if (colorMode === 'place') return surah.revelationPlace === 'meccan' ? '#E8D6A6' : '#CFE4D8';
+      if (colorMode === 'juz') return JUZ_COLORS[(surah.juzStart - 1) % 30];
+      const ratio = surah.ayahCount / 286;
+      return `hsl(160, 35%, ${Math.round(90 - ratio * 45)}%)`;
+    },
+    [colorMode, statusColors, getSurahProgress]
+  );
 
+  // ─── Nearest-surah hit detection (JS, called from gesture callbacks) ───────
+  const findNearestSurah = useCallback(
+    (tapX: number, tapY: number): number | null => {
+      const s = sitesRef.current;
+      let minDist = Infinity;
+      let nearest = -1;
+      for (let i = 0; i < s.length; i++) {
+        const dx = tapX - s[i][0];
+        const dy = tapY - s[i][1];
+        const d = dx * dx + dy * dy;
+        if (d < minDist) { minDist = d; nearest = i; }
+      }
+      // Reject taps too far from any site (~half an average cell diagonal)
+      const maxDist = (width * canvasH) / (s.length * 1.5);
+      return minDist < maxDist && nearest >= 0 ? nearest + 1 : null;
+    },
+    [width, canvasH]
+  );
+
+  const handleTap = useCallback(
+    (x: number, y: number) => {
+      const id = findNearestSurah(x, y);
+      if (id) {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setPressedId(id);
+        setTimeout(() => setPressedId(null), 200);
+        onSurahPress(id);
+      }
+    },
+    [findNearestSurah, onSurahPress]
+  );
+
+  const handleLongPress = useCallback(
+    (x: number, y: number) => {
+      const id = findNearestSurah(x, y);
+      if (id) {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onSurahLongPress(id);
+      }
+    },
+    [findNearestSurah, onSurahLongPress]
+  );
+
+  // ─── Animations ──────────────────────────────────────────────────────────
   const beat = useSharedValue(1);
   const entered = useSharedValue(0);
   const pinchScale = useSharedValue(1);
   const savedPinch = useSharedValue(1);
 
   useEffect(() => {
-    entered.value = withDelay(
-      80,
-      withTiming(1, { duration: 1100, easing: Easing.out(Easing.cubic) })
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+    entered.value = withDelay(80, withTiming(1, { duration: 1100, easing: Easing.out(Easing.cubic) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -146,16 +181,14 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   useEffect(() => {
     pinchScale.value = 1;
     savedPinch.value = 1;
-    // zoomResetRevision only — shared values are stable Reanimated refs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomResetRevision]);
 
-  const clampPinch = (v: number) => Math.min(3.25, Math.max(1, v));
+  // ─── Gestures ─────────────────────────────────────────────────────────────
+  const clamp = (v: number) => Math.min(3.25, Math.max(1, v));
 
   const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
-      pinchScale.value = clampPinch(savedPinch.value * e.scale);
-    })
+    .onUpdate((e) => { pinchScale.value = clamp(savedPinch.value * e.scale); })
     .onEnd(() => {
       savedPinch.value = pinchScale.value;
       if (pinchScale.value < 1.04) {
@@ -167,26 +200,31 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
       }
     });
 
+  const tapGesture = Gesture.Tap()
+    .maxDuration(400)
+    .onEnd((e) => { runOnJS(handleTap)(e.x, e.y); });
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .onStart((e) => { runOnJS(handleLongPress)(e.x, e.y); });
+
   const flingLeft = Gesture.Fling()
     .direction(Directions.LEFT)
-    .onEnd(() => {
-      runOnJS(onCycleColorMode)(1);
-    });
+    .onEnd(() => { runOnJS(onCycleColorMode)(1); });
 
   const flingRight = Gesture.Fling()
     .direction(Directions.RIGHT)
-    .onEnd(() => {
-      runOnJS(onCycleColorMode)(-1);
-    });
+    .onEnd(() => { runOnJS(onCycleColorMode)(-1); });
 
-  const composed = Gesture.Simultaneous(pinchGesture, Gesture.Exclusive(flingLeft, flingRight));
+  const composed = Gesture.Simultaneous(
+    pinchGesture,
+    Gesture.Exclusive(longPressGesture, tapGesture, flingLeft, flingRight)
+  );
 
   const shellStyle = useAnimatedStyle(() => ({
     opacity: interpolate(entered.value, [0, 1], [0, 1]),
     transform: [
-      {
-        scale: pinchScale.value * beat.value * interpolate(entered.value, [0, 1], [0.9, 1]),
-      },
+      { scale: pinchScale.value * beat.value * interpolate(entered.value, [0, 1], [0.88, 1]) },
     ],
   }));
 
@@ -204,7 +242,7 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
             <G clipPath="url(#heartClip)">
               {polygons.map((poly, index) => {
                 const surahId = index + 1;
-                if (!poly) return null;
+                if (!poly || poly.length < 3) return null;
                 const d = polygonToPathD(poly);
                 if (!d) return null;
                 const [cx, cy] = polygonCentroid(poly);
@@ -214,38 +252,26 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
                 const isPressed = pressedId === surahId;
                 const fill = getFill(surahId);
                 const surah = SURAHS[surahId - 1];
-                const secondary =
-                  i18n.language.startsWith('en') ? surah.nameTranslit : surah.nameRu;
-                const maxSec = side < 22 ? 5 : side < 30 ? 8 : 12;
-                const arabicSize = Math.min(10.5, Math.max(5.2, side * 0.34));
-                const secSize = Math.min(7.2, Math.max(4.2, side * 0.22));
+                if (!surah) return null;
+                const secondary = i18n.language.startsWith('en') ? surah.nameTranslit : surah.nameRu;
+                const maxSec = side < 22 ? 4 : side < 32 ? 7 : 11;
+                const arabicSize = Math.min(11, Math.max(5, side * 0.33));
+                const secSize = Math.min(7.5, Math.max(4, side * 0.21));
 
                 return (
-                  <G
-                    key={surahId}
-                    onPress={() => {
-                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      onSurahPress(surahId);
-                    }}
-                    onLongPress={() => {
-                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      onSurahLongPress(surahId);
-                    }}
-                    onPressIn={() => setPressedId(surahId)}
-                    onPressOut={() => setPressedId((p) => (p === surahId ? null : p))}
-                  >
+                  <G key={surahId}>
                     <Path
                       d={d}
                       fill={fill}
-                      fillOpacity={isPressed ? 0.92 : 1}
+                      fillOpacity={isPressed ? 0.75 : 1}
                       stroke={isActive || isPressed ? themeColors.accentGold : themeColors.border}
-                      strokeWidth={isActive ? 1.35 : isPressed ? 1.15 : 0.55}
+                      strokeWidth={isActive ? 1.5 : isPressed ? 1.2 : 0.5}
                     />
-                    {fontsLoaded ? (
+                    {fontsLoaded && side >= 14 ? (
                       <>
                         <SvgText
                           x={cx}
-                          y={cy - secSize * 0.55}
+                          y={cy - secSize * 0.6}
                           fill={themeColors.textPrimary}
                           fontSize={arabicSize}
                           fontFamily="Amiri_700Bold"
@@ -256,14 +282,14 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
                         </SvgText>
                         <SvgText
                           x={cx}
-                          y={cy + arabicSize * 0.55}
+                          y={cy + arabicSize * 0.6}
                           fill={themeColors.textSecondary}
                           fontSize={secSize}
                           fontFamily="Amiri_400Regular"
                           textAnchor="middle"
                           pointerEvents="none"
                         >
-                          {fitSecondaryLabel(secondary, maxSec)}
+                          {fitLabel(secondary, maxSec)}
                         </SvgText>
                       </>
                     ) : null}
@@ -272,11 +298,12 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
               })}
             </G>
 
+            {/* Outline rendered on top of cells */}
             <Path
               d={outlineD}
               fill="none"
               stroke={themeColors.textPrimary}
-              strokeWidth={1.35}
+              strokeWidth={1.5}
               pointerEvents="none"
             />
           </Svg>
@@ -287,8 +314,5 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
 };
 
 const styles = StyleSheet.create({
-  wrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  wrap: { alignItems: 'center', justifyContent: 'center' },
 });

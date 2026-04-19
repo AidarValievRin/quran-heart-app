@@ -104,7 +104,7 @@ export function HeartScreen({ navigation }: any) {
         </Text>
       </View>
 
-      <View style={styles.heartArea}>
+      <ScrollView style={styles.heartArea} scrollEnabled bounces>
         <HeartMosaic
           themeColors={colors}
           colorMode={colorMode}
@@ -114,7 +114,7 @@ export function HeartScreen({ navigation }: any) {
           zoomResetRevision={zoomResetRevision}
           activeSurahId={selectedSurah}
         />
-      </View>
+      </ScrollView>
 
       <Modal visible={showColorPicker} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setShowColorPicker(false)}>
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     lineHeight: 15,
   },
-  heartArea: { flex: 1, justifyContent: 'center' },
+  heartArea: { flex: 1 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalRoot: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
