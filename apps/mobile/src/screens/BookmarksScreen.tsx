@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Text, SectionList, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { listBookmarks, type BookmarkRow } from '../db/bookmarksRepo';
@@ -19,15 +19,30 @@ export function BookmarksScreen() {
     }, [])
   );
 
+  const sections = useMemo(() => {
+    const bySurah = new Map<number, BookmarkRow[]>();
+    for (const r of rows) {
+      if (!bySurah.has(r.surah)) bySurah.set(r.surah, []);
+      bySurah.get(r.surah)!.push(r);
+    }
+    const surahIds = [...bySurah.keys()].sort((a, b) => a - b);
+    return surahIds.map((sid) => ({
+      title: SURAHS[sid - 1]?.nameTranslit ?? `Surah ${sid}`,
+      data: bySurah.get(sid)!,
+    }));
+  }, [rows]);
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bgMain }]}>
       <Text style={[styles.title, { color: colors.textPrimary }]}>{t('bookmarks.title')}</Text>
-      <FlatList
-        data={rows}
+      <SectionList
+        sections={sections}
         keyExtractor={(r) => String(r.id)}
         ListEmptyComponent={<Text style={{ color: colors.textSecondary }}>{t('bookmarks.empty')}</Text>}
+        renderSectionHeader={({ section: { title } }) => (
+          <Text style={[styles.sectionHdr, { color: colors.accentGreen }]}>{title}</Text>
+        )}
         renderItem={({ item }) => {
-          const surah = SURAHS[item.surah - 1];
           return (
             <TouchableOpacity
               style={[styles.row, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
@@ -39,7 +54,7 @@ export function BookmarksScreen() {
               }
             >
               <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
-                {surah?.nameTranslit} · {t('surahScreen.ayahShort', { n: item.ayah })}
+                {t('surahScreen.ayahShort', { n: item.ayah })}
               </Text>
               <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{item.color}</Text>
             </TouchableOpacity>
@@ -53,6 +68,7 @@ export function BookmarksScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, padding: Spacing.md },
   title: { fontSize: 22, fontWeight: '700', marginBottom: Spacing.md },
+  sectionHdr: { fontSize: 14, fontWeight: '700', marginTop: Spacing.md, marginBottom: Spacing.sm },
   row: {
     padding: Spacing.md,
     borderRadius: Radius.md,

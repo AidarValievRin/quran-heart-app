@@ -22,6 +22,7 @@ import { SeerahOutlineScreen } from '../screens/learn/SeerahOutlineScreen';
 import { LecturesScreen } from '../screens/learn/LecturesScreen';
 import { HajjGuideScreen } from '../screens/learn/HajjGuideScreen';
 import { SyncStatusScreen } from '../screens/tools/SyncStatusScreen';
+import { DuaCollectionScreen } from '../screens/tools/DuaCollectionScreen';
 
 const Stack = createStackNavigator();
 
@@ -46,6 +47,7 @@ export function ToolsStack() {
       <Stack.Screen name="Names99" component={Names99Screen} options={{ title: t('tools.names99.title') }} />
       <Stack.Screen name="Zakat" component={ZakatScreen} options={{ title: t('tools.zakat.title') }} />
       <Stack.Screen name="Mosque" component={MosqueScreen} options={{ title: t('tools.mosque.title') }} />
+      <Stack.Screen name="DuaCollection" component={DuaCollectionScreen} options={{ title: t('tools.dua.title') }} />
       <Stack.Screen name="Tajweed" component={TajweedScreen} options={{ title: t('tajweed.title') }} />
       <Stack.Screen name="CommunityHome" component={CommunityHomeScreen} options={{ title: t('community.title') }} />
       <Stack.Screen name="FamilyCircle" component={FamilyCircleScreen} options={{ title: t('community.family.title') }} />

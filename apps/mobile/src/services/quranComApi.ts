@@ -21,6 +21,36 @@ export async function fetchWordsForVerse(verseKey: string): Promise<WbwWord[]> {
   return (data.verse?.words ?? []).filter((w: WbwWord & { char_type_name?: string }) => w.char_type_name === 'word');
 }
 
+/** Per-ayah Latin transliteration joined from word-by-word data (Quran.com API v4). */
+export async function fetchTransliterationLatinByAyahForChapter(surahNumber: number): Promise<Map<number, string>> {
+  const result = new Map<number, string>();
+  let page = 1;
+  const perPage = 50;
+  for (;;) {
+    const url = `${BASE}/verses/by_chapter/${surahNumber}?words=true&word_fields=text_uthmani,transliteration&per_page=${perPage}&page=${page}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`verses by_chapter ${res.status}`);
+    const data = (await res.json()) as {
+      verses?: { verse_number: number; words?: (WbwWord & { char_type_name?: string })[] }[];
+      pagination?: { next_page: number | null };
+    };
+    const verses = data.verses ?? [];
+    if (!verses.length) break;
+    for (const v of verses) {
+      const ayahNum = v.verse_number;
+      const words = (v.words ?? []).filter((w) => w.char_type_name === 'word');
+      const parts = words
+        .map((w) => w.transliteration?.text?.trim())
+        .filter((x): x is string => !!x);
+      result.set(ayahNum, parts.join(' '));
+    }
+    const next = data.pagination?.next_page;
+    if (!next) break;
+    page = next;
+  }
+  return result;
+}
+
 export interface TafsirPayload {
   resourceId: number;
   resourceName: string;

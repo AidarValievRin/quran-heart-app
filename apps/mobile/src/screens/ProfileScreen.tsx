@@ -10,13 +10,24 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useProgressStore } from '../store/progressStore';
+import { useReadingProgressStore } from '../store/readingProgressStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { useActivityStore } from '../store/activityStore';
+import { SURAHS } from '../data/surahsMeta';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Spacing, Radius } from '../theme';
+import { OrnamentAvatar } from '../components/profile/OrnamentAvatar';
 
 export function ProfileScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { totalReadSurahs, totalMemorizedAyahs } = useProgressStore();
+  const profileDisplayName = useSettingsStore((s) => s.profileDisplayName);
+  const profileOrnamentId = useSettingsStore((s) => s.profileOrnamentId);
+  const streakDays = useActivityStore((s) => s.streakDays);
+  const quranMinutesApprox = useActivityStore((s) => s.quranMinutesApprox);
+  const lastRead = useReadingProgressStore((s) => ({ sid: s.lastSurahId, ay: s.lastAyah }));
+  const lastSurahMeta = lastRead.sid > 0 ? SURAHS[lastRead.sid - 1] : undefined;
   const { colors } = useAppTheme();
 
   return (
@@ -25,8 +36,21 @@ export function ProfileScreen() {
         <Text style={[styles.title, { color: colors.textPrimary }]}>{t('profile.title')}</Text>
 
         <View style={[styles.avatar, { backgroundColor: colors.bgCard, borderColor: colors.accentGold }]}>
-          <Text style={{ fontSize: 48 }}>✦</Text>
+          <OrnamentAvatar
+            presetId={profileOrnamentId}
+            size={88}
+            stroke={colors.accentGold}
+            fill={colors.bgMain}
+          />
         </View>
+        {profileDisplayName.trim() ? (
+          <Text style={[styles.displayName, { color: colors.textPrimary }]}>{profileDisplayName.trim()}</Text>
+        ) : (
+          <Text style={[styles.displayName, { color: colors.textSecondary }]}>{t('profile.displayNameUnset')}</Text>
+        )}
+        <Text style={[styles.activityLine, { color: colors.textSecondary }]}>
+          {t('profile.activitySummary', { streak: streakDays, minutes: quranMinutesApprox })}
+        </Text>
 
         <View style={styles.statsRow}>
           <StatCard
@@ -48,6 +72,26 @@ export function ProfileScreen() {
         </View>
 
         <View style={styles.menu}>
+          {lastSurahMeta && lastRead.ay > 0 ? (
+            <MenuRow
+              label={t('profile.continueReading', {
+                surah: lastSurahMeta.nameTranslit,
+                ayah: lastRead.ay,
+              })}
+              colors={colors}
+              onPress={() =>
+                navigation.navigate('Heart', {
+                  screen: 'Surah',
+                  params: { surahId: lastRead.sid, ayah: lastRead.ay },
+                })
+              }
+            />
+          ) : null}
+          <MenuRow
+            label={t('profile.openSurahList')}
+            colors={colors}
+            onPress={() => navigation.navigate('SurahIndex')}
+          />
           <MenuRow
             label={t('profile.openBookmarks')}
             colors={colors}
@@ -62,6 +106,11 @@ export function ProfileScreen() {
             label={t('profile.openHifzQueue')}
             colors={colors}
             onPress={() => navigation.navigate('HifzQueue')}
+          />
+          <MenuRow
+            label={t('profile.openHifzStats')}
+            colors={colors}
+            onPress={() => navigation.navigate('HifzStats')}
           />
           <MenuRow
             label={t('profile.openSettings')}
@@ -154,8 +203,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
+    overflow: 'hidden',
   },
+  displayName: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: Spacing.xs },
+  activityLine: { fontSize: 13, textAlign: 'center', marginBottom: Spacing.lg },
   statsRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.md },
   menu: { gap: Spacing.sm, marginBottom: Spacing.md },
   menuRow: {

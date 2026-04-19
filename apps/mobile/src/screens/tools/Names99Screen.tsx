@@ -1,34 +1,73 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useFonts, Amiri_400Regular } from '@expo-google-fonts/amiri';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
-import sample from '../../data/content/names99.sample.json';
+import bundle from '../../data/content/names99.bundle.json';
 
-type Item = (typeof sample.items)[number];
+type Item = (typeof bundle.items)[number];
 
 export function Names99Screen() {
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const lang = i18n.language.startsWith('ru') ? 'ru' : 'en';
+  const [fontsLoaded] = useFonts({ Amiri_400Regular });
+  const [open, setOpen] = useState<number | null>(null);
+
+  const toggle = (order: number) => {
+    setOpen((o) => (o === order ? null : order));
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bgMain }]}>
       <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>{t('tools.names99.disclaimer')}</Text>
-      <Text style={[styles.attr, { color: colors.textSecondary }]}>{sample.attribution}</Text>
+      <Text style={[styles.attr, { color: colors.textSecondary }]}>{bundle.attribution}</Text>
       <FlatList
-        data={sample.items as Item[]}
+        data={bundle.items as Item[]}
         keyExtractor={(it) => String(it.order)}
-        contentContainerStyle={{ padding: Spacing.md }}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.bgCard }]}>
-            <Text style={{ color: colors.accentGreen, fontWeight: '700' }}>{item.order}</Text>
-            <Text style={{ color: colors.textPrimary, fontSize: 16, marginTop: 4 }}>{item.transliteration}</Text>
-            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
-              {lang === 'ru' ? item.meaningRu : item.meaningEn}
-            </Text>
-          </View>
-        )}
+        contentContainerStyle={{ padding: Spacing.md, paddingBottom: Spacing.xl }}
+        renderItem={({ item }) => {
+          const expanded = open === item.order;
+          const meaning =
+            lang === 'ru' && item.meaningRu?.trim()
+              ? item.meaningRu
+              : item.meaningEn;
+          return (
+            <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.bgCard }]}>
+              <TouchableOpacity onPress={() => toggle(item.order)} activeOpacity={0.7}>
+                <Text style={{ color: colors.accentGreen, fontWeight: '700' }}>{item.order}</Text>
+                <Text
+                  style={{
+                    color: colors.textPrimary,
+                    fontSize: 22,
+                    marginTop: 6,
+                    textAlign: 'right',
+                    writingDirection: 'rtl',
+                    fontFamily: fontsLoaded ? 'Amiri_400Regular' : undefined,
+                  }}
+                >
+                  {item.nameAr}
+                </Text>
+                <Text style={{ color: colors.textSecondary, marginTop: 4 }}>{item.transliteration}</Text>
+                <Text style={{ color: colors.textPrimary, marginTop: 6 }}>{meaning}</Text>
+                <Text style={{ color: colors.accentGreen, marginTop: 8, fontSize: 12 }}>
+                  {expanded ? t('tools.names99.tapCollapse') : t('tools.names99.tapExpand')}
+                </Text>
+              </TouchableOpacity>
+              {expanded ? (
+                <View style={{ marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
+                    {t('tools.names99.detailNote')}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: Spacing.sm }}>
+                    {t('tools.names99.sourceLine', { url: bundle.sourceUrl })}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          );
+        }}
       />
     </SafeAreaView>
   );

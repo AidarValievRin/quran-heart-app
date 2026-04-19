@@ -86,11 +86,28 @@ export function generateSurahSites(w: number, h: number): [number, number][] {
   // Sort top → bottom, left → right to match Quran order
   candidates.sort(([ax, ay], [bx, by]) => (ay !== by ? ay - by : ax - bx));
 
+  const pickEvenly = (pts: [number, number][]): [number, number][] => {
+    if (pts.length === 0) {
+      const cx = w * 0.5;
+      const cy = h * 0.5;
+      return Array.from({ length: 114 }, () => [cx, cy]);
+    }
+    if (pts.length === 1) {
+      const p = pts[0]!;
+      return Array.from({ length: 114 }, () => [...p] as [number, number]);
+    }
+    return Array.from({ length: 114 }, (_, i) => {
+      const idx = Math.min(Math.round((i * (pts.length - 1)) / 113), pts.length - 1);
+      const q = pts[idx];
+      if (!q || !Number.isFinite(q[0]) || !Number.isFinite(q[1])) {
+        return [w * 0.5, h * 0.5];
+      }
+      return q;
+    });
+  };
+
   if (candidates.length >= 114) {
-    const step = (candidates.length - 1) / 113;
-    return Array.from({ length: 114 }, (_, i) =>
-      candidates[Math.min(Math.round(i * step), candidates.length - 1)]
-    );
+    return pickEvenly(candidates);
   }
 
   // Fallback: add extra points in a coarser grid if somehow < 114
@@ -103,10 +120,7 @@ export function generateSurahSites(w: number, h: number): [number, number][] {
     }
   }
   extra.sort(([ax, ay], [bx, by]) => (ay !== by ? ay - by : ax - bx));
-  const step = (extra.length - 1) / 113;
-  return Array.from({ length: 114 }, (_, i) =>
-    extra[Math.min(Math.round(i * step), extra.length - 1)]
-  );
+  return pickEvenly(extra);
 }
 
 export function polygonToPathD(poly: [number, number][] | null): string {
@@ -141,6 +155,13 @@ export function computeVoronoiPolygons(
   height: number,
   sites: [number, number][]
 ): ([number, number][] | null)[] {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 8 || height < 8) {
+    return Array.from({ length: 114 }, () => null);
+  }
+  const safeSites: [number, number][] = sites.map(([x, y]) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return [width * 0.5, height * 0.5];
+    return [x, y];
+  });
   const pad = Math.max(width, height) * 0.6;
   const diagram = voronoi<[number, number]>()
     .x((d) => d[0])
@@ -149,5 +170,5 @@ export function computeVoronoiPolygons(
       [-pad, -pad],
       [width + pad, height + pad],
     ]);
-  return diagram.polygons(sites);
+  return diagram.polygons(safeSites);
 }

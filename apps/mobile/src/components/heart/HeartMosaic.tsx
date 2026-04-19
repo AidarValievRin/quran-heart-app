@@ -160,6 +160,8 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   const entered = useSharedValue(0);
   const pinchScale = useSharedValue(1);
   const savedPinch = useSharedValue(1);
+  /** Block tap/long-press while pinch is active to avoid gesture conflicts / crashes. */
+  const isPinching = useSharedValue(0);
 
   useEffect(() => {
     entered.value = withDelay(80, withTiming(1, { duration: 1100, easing: Easing.out(Easing.cubic) }));
@@ -188,25 +190,54 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   const clamp = (v: number) => Math.min(3.25, Math.max(1, v));
 
   const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => { pinchScale.value = clamp(savedPinch.value * e.scale); })
+    .onBegin(() => {
+      isPinching.value = 1;
+    })
+    .onUpdate((e) => {
+      const s = e.scale;
+      if (typeof s !== 'number' || !Number.isFinite(s) || s <= 0) return;
+      pinchScale.value = clamp(savedPinch.value * s);
+    })
     .onEnd(() => {
-      savedPinch.value = pinchScale.value;
-      if (pinchScale.value < 1.04) {
+      const v = pinchScale.value;
+      if (!Number.isFinite(v)) {
+        pinchScale.value = 1;
+        savedPinch.value = 1;
+        return;
+      }
+      savedPinch.value = v;
+      if (v < 1.04) {
         pinchScale.value = withSpring(1, { damping: 18, stiffness: 220 });
         savedPinch.value = 1;
-      } else if (pinchScale.value > 3.1) {
+      } else if (v > 3.1) {
         pinchScale.value = withSpring(3.1, { damping: 16, stiffness: 200 });
         savedPinch.value = 3.1;
+      }
+    })
+    .onFinalize(() => {
+      isPinching.value = 0;
+      const v = pinchScale.value;
+      if (!Number.isFinite(v)) {
+        pinchScale.value = 1;
+        savedPinch.value = 1;
       }
     });
 
   const tapGesture = Gesture.Tap()
     .maxDuration(400)
-    .onEnd((e) => { runOnJS(handleTap)(e.x, e.y); });
+    .onEnd((e) => {
+      'worklet';
+      if (isPinching.value) return;
+      runOnJS(handleTap)(e.x, e.y);
+    });
 
   const longPressGesture = Gesture.LongPress()
     .minDuration(500)
-    .onStart((e) => { runOnJS(handleLongPress)(e.x, e.y); });
+    .onStart((e) => {
+      'worklet';
+      if (isPinching.value) return;
+      runOnJS(handleLongPress)(e.x, e.y);
+    });
 
   const flingLeft = Gesture.Fling()
     .direction(Directions.LEFT)

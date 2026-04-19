@@ -3,6 +3,9 @@ import type { Surah } from '../data/types';
 import { getAllAyahs } from '../data/quran/ayahIndex';
 import type { QuranAyahRow } from '../data/quran/types';
 import { getAyahTranslationText } from '../data/quran/translationIndex';
+import ayahTranslitLatinSearch from '../data/quran/ayahTranslitLatin.search.json';
+
+const LATIN_TRANLIT_INDEX = ayahTranslitLatinSearch as Record<string, string>;
 
 const ALL_AYAHS: QuranAyahRow[] = getAllAyahs();
 
@@ -118,6 +121,7 @@ export function searchQuranSections(queryRaw: string, maxAyahs = 48): QuranSearc
     return { surahs, ayahs };
   }
 
+  const seen = new Set<string>();
   let count = 0;
   for (const row of ALL_AYAHS) {
     if (count >= maxAyahs) break;
@@ -134,7 +138,28 @@ export function searchQuranSections(queryRaw: string, maxAyahs = 48): QuranSearc
       if (matchRu && kul) preview = kul;
       else if (matchEn && sah) preview = sah;
       preview = preview.length > 140 ? `${preview.slice(0, 140)}…` : preview;
+      const k = `${row.surah}:${row.ayah}`;
+      seen.add(k);
       ayahs.push({ kind: 'ayah', surah: row.surah, ayah: row.ayah, preview });
+      count++;
+    }
+  }
+
+  const latinKeys = Object.keys(LATIN_TRANLIT_INDEX);
+  if (latinKeys.length > 0 && !hasArabic(q) && qLower.replace(/[^a-z0-9'-]/gi, '').length >= 3) {
+    const qLatin = qLower.replace(/\s+/g, ' ').trim();
+    for (const key of latinKeys) {
+      if (count >= maxAyahs) break;
+      if (seen.has(key)) continue;
+      const latin = LATIN_TRANLIT_INDEX[key];
+      if (!latin) continue;
+      if (!latin.toLowerCase().includes(qLatin) && !latin.toLowerCase().includes(qLower)) continue;
+      const [sn, an] = key.split(':').map((x) => parseInt(x, 10));
+      const row = ALL_AYAHS.find((a) => a.surah === sn && a.ayah === an);
+      if (!row) continue;
+      const preview = latin.length > 140 ? `${latin.slice(0, 140)}…` : latin;
+      ayahs.push({ kind: 'ayah', surah: sn, ayah: an, preview });
+      seen.add(key);
       count++;
     }
   }

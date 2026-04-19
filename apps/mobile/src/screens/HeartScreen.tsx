@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { HeartMosaic, type HeartColorMode } from '../components/heart/HeartMosaic';
 import { SURAHS } from '../data/surahsMeta';
 import { useProgressStore } from '../store/progressStore';
+import { upsertBookmark } from '../db/bookmarksRepo';
 import { Spacing, Radius } from '../theme';
 import type { ThemeColors } from '../theme/colors';
 import { useAppTheme } from '../theme/ThemeContext';
@@ -56,6 +57,19 @@ export function HeartScreen({ navigation }: any) {
           {
             text: t('heart.quickOpenSurah'),
             onPress: () => navigation.navigate('Surah', { surahId: s.id }),
+          },
+          {
+            text: t('heart.quickListenSurah'),
+            onPress: () =>
+              navigation.navigate('Surah', { surahId: s.id, ayah: 1, autoPlayAyah: true }),
+          },
+          {
+            text: t('heart.quickBookmarkFirst'),
+            onPress: () => void upsertBookmark(s.id, 1, 'gold'),
+          },
+          {
+            text: t('heart.quickChangeStatus'),
+            onPress: () => setSelectedSurah(surahId),
           },
           {
             text: t('heart.quickShowCard'),
@@ -217,7 +231,14 @@ export function HeartScreen({ navigation }: any) {
                   <ActionButton
                     label={t('common.listen')}
                     color={colors.accentGold}
-                    onPress={() => setSelectedSurah(null)}
+                    onPress={() => {
+                      setSelectedSurah(null);
+                      navigation.navigate('Surah', {
+                        surahId: surah.id,
+                        ayah: 1,
+                        autoPlayAyah: true,
+                      });
+                    }}
                   />
                 </View>
               </View>

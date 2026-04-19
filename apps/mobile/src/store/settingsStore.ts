@@ -32,6 +32,10 @@ interface SettingsState {
   /** Last saved coordinates; null until user sets location or uses GPS */
   prayerLatitude: number | null;
   prayerLongitude: number | null;
+  /** Optional display name on profile (Latin / Cyrillic; not used for auth). */
+  profileDisplayName: string;
+  /** 0–7: geometric ornament preset for profile avatar. */
+  profileOrnamentId: number;
   setOnboardingCompleted: (v: boolean) => void;
   setInterfaceLang: (lang: 'ru' | 'en') => void;
   setQuranTranslation: (slug: QuranTranslationSlug) => void;
@@ -41,6 +45,8 @@ interface SettingsState {
   setPrayerMethod: (m: PrayerMethodId) => void;
   setPrayerMadhab: (m: PrayerMadhabId) => void;
   setPrayerCoordinates: (lat: number, lon: number) => void;
+  setProfileDisplayName: (name: string) => void;
+  setProfileOrnamentId: (id: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -56,6 +62,8 @@ export const useSettingsStore = create<SettingsState>()(
       prayerMadhab: 'shafi',
       prayerLatitude: 55.7558,
       prayerLongitude: 37.6173,
+      profileDisplayName: '',
+      profileOrnamentId: 0,
       setOnboardingCompleted: (onboardingCompleted) => set({ onboardingCompleted }),
       setInterfaceLang: (interfaceLang) => set({ interfaceLang }),
       setQuranTranslation: (quranTranslation) => set({ quranTranslation }),
@@ -65,6 +73,9 @@ export const useSettingsStore = create<SettingsState>()(
       setPrayerMethod: (prayerMethod) => set({ prayerMethod }),
       setPrayerMadhab: (prayerMadhab) => set({ prayerMadhab }),
       setPrayerCoordinates: (prayerLatitude, prayerLongitude) => set({ prayerLatitude, prayerLongitude }),
+      setProfileDisplayName: (profileDisplayName) => set({ profileDisplayName }),
+      setProfileOrnamentId: (profileOrnamentId) =>
+        set({ profileOrnamentId: Math.max(0, Math.min(7, Math.floor(profileOrnamentId))) }),
     }),
     {
       name: 'quran-settings',

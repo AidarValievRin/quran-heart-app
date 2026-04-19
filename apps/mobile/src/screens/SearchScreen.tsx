@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { searchQuranSections } from '../lib/quranSearch';
+import { HighlightedText } from '../lib/searchHighlight';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Spacing, Radius } from '../theme';
 
@@ -97,9 +98,12 @@ export function SearchScreen({ navigation }: { navigation: { navigate: (a: strin
             <Text style={[styles.itemMeta, { color: colors.accentGreen, marginBottom: 4 }]}>
               {t('search.ayahMeta', { surah: hit.surah, ayah: hit.ayah })}
             </Text>
-            <Text style={[styles.preview, { color: colors.textPrimary }]} numberOfLines={4}>
-              {hit.preview}
-            </Text>
+            <HighlightedText
+              text={hit.preview}
+              query={query}
+              numberOfLines={4}
+              style={[styles.preview, { color: colors.textPrimary }]}
+            />
           </TouchableOpacity>
         ))}
       </ScrollView>

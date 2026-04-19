@@ -33,6 +33,9 @@ apps/mobile/.env.local
 .DS_Store
 Thumbs.db
 
+# Local Tanzil file for offline verify (see tools/verify-tanzil-local.mjs)
+tools/_tanzil-quran-uthmani.txt
+
 # Editor
 .vscode/
 .claude/

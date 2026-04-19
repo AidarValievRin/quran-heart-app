@@ -1,10 +1,16 @@
 import React, { useCallback } from 'react';
-import { Text, StyleSheet, SafeAreaView, TouchableOpacity, Linking } from 'react-native';
+import { Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
+
+/** OSM expects #map=zoom/lat/lon (lat/lon in decimal degrees). */
+function osmMosqueNearUrl(lat: number, lon: number, zoom = 15): string {
+  const q = encodeURIComponent(`mosque near ${lat},${lon}`);
+  return `https://www.openstreetmap.org/search?query=${q}#map=${zoom}/${lat}/${lon}`;
+}
 
 export function MosqueScreen() {
   const { t } = useTranslation();
@@ -13,12 +19,11 @@ export function MosqueScreen() {
   const lon = useSettingsStore((s) => s.prayerLongitude);
 
   const openOsm = useCallback(async () => {
-    if (lat != null && lon != null) {
-      const url = `https://www.openstreetmap.org/search?query=mosque#map=14/${lat}/${lon}`;
-      await WebBrowser.openBrowserAsync(url);
-    } else {
-      await WebBrowser.openBrowserAsync('https://www.openstreetmap.org/search?query=mosque');
-    }
+    const url =
+      lat != null && lon != null
+        ? osmMosqueNearUrl(lat, lon)
+        : 'https://www.openstreetmap.org/search?query=mosque';
+    await WebBrowser.openBrowserAsync(url);
   }, [lat, lon]);
 
   return (
@@ -29,7 +34,7 @@ export function MosqueScreen() {
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.btn, { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border }]}
-        onPress={() => void Linking.openURL('https://www.openstreetmap.org/copyright')}
+        onPress={() => void WebBrowser.openBrowserAsync('https://www.openstreetmap.org/copyright')}
       >
         <Text style={{ color: colors.textPrimary }}>{t('tools.mosque.osmAttrib')}</Text>
       </TouchableOpacity>

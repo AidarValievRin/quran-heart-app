@@ -62,3 +62,18 @@ export async function listDueAyahs(before: number = Date.now(), limit = 50): Pro
     [before, limit]
   );
 }
+
+export async function countMemorizationRows(): Promise<number> {
+  const db = await getDatabase();
+  const r = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM ayah_memorization');
+  return r?.c ?? 0;
+}
+
+export async function countDueAyahs(before: number = Date.now()): Promise<number> {
+  const db = await getDatabase();
+  const r = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) as c FROM ayah_memorization WHERE due_at <= ?',
+    [before]
+  );
+  return r?.c ?? 0;
+}

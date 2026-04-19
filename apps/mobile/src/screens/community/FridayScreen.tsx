@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
 
-type Nav = { getParent: () => { navigate: (n: string, p?: object) => void } | undefined };
+type Nav = {
+  getParent: () => { navigate: (n: string, p?: object) => void } | undefined;
+  navigate: (n: string) => void;
+};
 
 export function FridayScreen({ navigation }: { navigation: Nav }) {
   const { t } = useTranslation();
@@ -24,6 +27,12 @@ export function FridayScreen({ navigation }: { navigation: Nav }) {
       <Text style={[styles.body, { color: colors.textSecondary }]}>{t('community.friday.body')}</Text>
       <TouchableOpacity style={[styles.btn, { backgroundColor: colors.accentGreen }]} onPress={openKahf}>
         <Text style={styles.btnTxt}>{t('community.friday.openKahf')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.btn, { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, marginTop: Spacing.sm }]}
+        onPress={() => navigation.navigate('PrayerTimes')}
+      >
+        <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{t('community.friday.openPrayerTimes')}</Text>
       </TouchableOpacity>
       <Text style={[styles.dua, { color: colors.textPrimary }]}>{t('community.friday.dua')}</Text>
     </SafeAreaView>

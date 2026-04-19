@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput } from 'react-native';
+import { Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, View, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRamadanStore, todayIsoDate } from '../../store/ramadanStore';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -20,6 +20,13 @@ export function RamadanScreen() {
   const setPages = useRamadanStore((s) => s.setQuranPages);
   const taraweeh = useRamadanStore((s) => s.taraweehRakats);
   const setTaraweeh = useRamadanStore((s) => s.setTaraweeh);
+  const lastTenJoined = useRamadanStore((s) => {
+    const a = s.lastTenNights;
+    if (!Array.isArray(a) || a.length !== 10) return '0000000000';
+    return a.map((x) => (x ? '1' : '0')).join('');
+  });
+  const lastTenNights = useMemo(() => lastTenJoined.split('').map((c) => c === '1'), [lastTenJoined]);
+  const toggleLastTenNight = useRamadanStore((s) => s.toggleLastTenNight);
 
   const iso = todayIsoDate();
   const fastToday = !!fastingByDate[iso];
@@ -32,6 +39,7 @@ export function RamadanScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bgMain }]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xl }}>
       <Text style={[styles.note, { color: colors.textSecondary }]}>{t('community.ramadan.note')}</Text>
       {maghrib ? (
         <Text style={{ color: colors.textPrimary, marginBottom: Spacing.md }}>
@@ -65,6 +73,28 @@ export function RamadanScreen() {
         onEndEditing={(e) => setTaraweeh(Math.max(0, parseInt(e.nativeEvent.text, 10) || 0))}
         style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgCard }]}
       />
+
+      <Text style={[styles.section, { color: colors.textPrimary }]}>{t('community.ramadan.lastTenTitle')}</Text>
+      <Text style={[styles.note, { color: colors.textSecondary, marginBottom: Spacing.md }]}>
+        {t('community.ramadan.lastTenHint')}
+      </Text>
+      <View style={styles.tenGrid}>
+        {lastTenNights.map((on, i) => (
+          <TouchableOpacity
+            key={i}
+            style={[
+              styles.nightChip,
+              { borderColor: colors.border, backgroundColor: on ? colors.statusRead : colors.bgCard },
+            ]}
+            onPress={() => toggleLastTenNight(i)}
+          >
+            <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: '600' }}>
+              {t('community.ramadan.nightChip', { n: i + 1 })}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -74,4 +104,7 @@ const styles = StyleSheet.create({
   note: { fontSize: 11, lineHeight: 16, marginBottom: Spacing.md },
   toggle: { padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1 },
   input: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
+  section: { fontSize: 15, fontWeight: '700', marginTop: Spacing.lg, marginBottom: Spacing.xs },
+  tenGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  nightChip: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, minWidth: '28%' },
 });

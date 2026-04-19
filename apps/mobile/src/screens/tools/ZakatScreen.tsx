@@ -13,6 +13,7 @@ export function ZakatScreen() {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
   const [cash, setCash] = useState('');
+  const [tradeGoods, setTradeGoods] = useState('');
   const [goldG, setGoldG] = useState('');
   const [silverG, setSilverG] = useState('');
   const [goldPrice, setGoldPrice] = useState('70');
@@ -20,6 +21,7 @@ export function ZakatScreen() {
 
   const result = useMemo(() => {
     const cashV = parseNum(cash);
+    const tradeV = parseNum(tradeGoods);
     const g = parseNum(goldG);
     const s = parseNum(silverG);
     const gp = parseNum(goldPrice);
@@ -28,10 +30,14 @@ export function ZakatScreen() {
     const silverValue = s * sp;
     const nisabGold = 85 * gp;
     const nisabSilver = 595 * sp;
-    const zakatable = cashV + (goldValue >= nisabGold ? goldValue : 0) + (silverValue >= nisabSilver ? silverValue : 0);
+    const zakatable =
+      cashV +
+      tradeV +
+      (goldValue >= nisabGold ? goldValue : 0) +
+      (silverValue >= nisabSilver ? silverValue : 0);
     const zakat = zakatable > 0 ? zakatable * 0.025 : 0;
     return { zakat, nisabGold, nisabSilver };
-  }, [cash, goldG, silverG, goldPrice, silverPrice]);
+  }, [cash, tradeGoods, goldG, silverG, goldPrice, silverPrice]);
 
   const field = (
     label: string,
@@ -63,6 +69,7 @@ export function ZakatScreen() {
       <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
         <Text style={[styles.warn, { color: colors.accentGold }]}>{t('tools.zakat.disclaimer')}</Text>
         {field(t('tools.zakat.cash'), cash, setCash)}
+        {field(t('tools.zakat.tradeGoods'), tradeGoods, setTradeGoods)}
         {field(t('tools.zakat.goldGrams'), goldG, setGoldG)}
         {field(t('tools.zakat.silverGrams'), silverG, setSilverG)}
         {field(t('tools.zakat.goldPricePerGram'), goldPrice, setGoldPrice)}

@@ -11,10 +11,12 @@ import {
   Pressable,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListRef } from '@shopify/flash-list';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { useTranslation } from 'react-i18next';
 import { useFonts, Amiri_400Regular, Amiri_700Bold } from '@expo-google-fonts/amiri';
 import { SURAHS } from '../data/surahsMeta';
@@ -30,17 +32,36 @@ import { getNoteForAyah, saveNote } from '../db/notesRepo';
 import { seedMemorizationIfAbsent, upsertAfterGrade } from '../db/memorizationRepo';
 import {
   fetchTafsirIbnKathirAr,
+  fetchTransliterationLatinByAyahForChapter,
   fetchWordsForVerse,
   stripHtmlToPlain,
   type WbwWord,
 } from '../services/quranComApi';
+import { latinTranslitToRuPractice } from '../lib/quranLatinToRuPractice';
+import { useReadingProgressStore } from '../store/readingProgressStore';
+import { useActivityStore } from '../store/activityStore';
+import { useProgressStore } from '../store/progressStore';
+import type { SurahProgress, SurahStatus } from '../data/types';
 
 type ReadMode = 'standard' | 'arabic' | 'translation';
+
+const SURAH_STATUS_OPTIONS: SurahStatus[] = [
+  'unread',
+  'read',
+  'studying',
+  'memorizing',
+  'memorized',
+  'reviewing',
+];
 
 const READ_MODES = ['standard', 'arabic', 'translation'] as const satisfies readonly ReadMode[];
 
 export function SurahScreen({ route, navigation }: { route: any; navigation: any }) {
-  const { surahId, ayah: initialAyah } = (route.params ?? {}) as { surahId: number; ayah?: number };
+  const { surahId, ayah: initialAyah, autoPlayAyah } = (route.params ?? {}) as {
+    surahId: number;
+    ayah?: number;
+    autoPlayAyah?: boolean;
+  };
   const surah = SURAHS[surahId - 1];
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
@@ -52,6 +73,19 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
   const [readMode, setReadMode] = useState<ReadMode>('standard');
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [repeatTotal, setRepeatTotal] = useState(1);
+  const [autoNextAyah, setAutoNextAyah] = useState(false);
+  const audioCtxRef = useRef<{ row: QuranAyahRow; playsRemaining: number; autoNext: boolean } | null>(null);
+  const ayahsRef = useRef<QuranAyahRow[]>([]);
+  const [inlineTafsirKey, setInlineTafsirKey] = useState<string | null>(null);
+  const [inlineTafsirLoading, setInlineTafsirLoading] = useState<string | null>(null);
+  const [inlineTafsirByKey, setInlineTafsirByKey] = useState<Record<string, { text: string; attr: string }>>({});
+  const setSurahStatus = useProgressStore((s) => s.setSurahStatus);
+  const surahProgress: SurahProgress = useProgressStore((s) => {
+    const p = s.progress[surahId];
+    return p ?? { surahId, status: 'unread', memorizedAyahs: [] };
+  });
 
   const [noteModal, setNoteModal] = useState<QuranAyahRow | null>(null);
   const [noteBody, setNoteBody] = useState('');
@@ -64,8 +98,31 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
   const [gradeAyah, setGradeAyah] = useState<QuranAyahRow | null>(null);
 
   const [marks, setMarks] = useState<Record<string, boolean>>({});
+  const [ayahTranslitLatin, setAyahTranslitLatin] = useState<Record<number, string>>({});
+  const lastReading = useReadingProgressStore((s) => ({ sid: s.lastSurahId, ay: s.lastAyah }));
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: { item: QuranAyahRow; isViewable?: boolean }[] }) => {
+      const top = viewableItems.find((v) => v.isViewable)?.item;
+      if (top) useReadingProgressStore.getState().setReadingPosition(top.surah, top.ayah);
+    }
+  ).current;
+  const viewabilityConfigCallbackPairs = useRef([{ viewabilityConfig: { itemVisiblePercentThreshold: 40 }, onViewableItemsChanged }]).current;
 
   const ayahs = useMemo(() => getAyahsForSurah(surahId), [surahId]);
+
+  useEffect(() => {
+    ayahsRef.current = ayahs;
+  }, [ayahs]);
+
+  useFocusEffect(
+    useCallback(() => {
+      useActivityStore.getState().recordQuranSession(0);
+      const id = setInterval(() => {
+        useActivityStore.getState().recordQuranSession(1);
+      }, 60000);
+      return () => clearInterval(id);
+    }, [])
+  );
 
   const transSlug: TranslationSlugActive | null =
     quranTranslation === 'kuliev' || quranTranslation === 'sahih' ? quranTranslation : null;
@@ -97,6 +154,36 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
     }
   }, [initialAyah, ayahs]);
 
+  useEffect(() => {
+    if (initialAyah || !listRef.current || ayahs.length === 0) return;
+    if (lastReading.sid !== surahId || lastReading.ay <= 0) return;
+    const idx = ayahs.findIndex((a) => a.ayah === lastReading.ay);
+    if (idx >= 0) {
+      setTimeout(() => listRef.current?.scrollToIndex({ index: idx, animated: false }), 400);
+    }
+  }, [initialAyah, ayahs, surahId, lastReading.sid, lastReading.ay]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAyahTranslitLatin({});
+    void (async () => {
+      try {
+        const map = await fetchTransliterationLatinByAyahForChapter(surahId);
+        if (cancelled) return;
+        const rec: Record<number, string> = {};
+        map.forEach((v, k) => {
+          if (v) rec[k] = v;
+        });
+        setAyahTranslitLatin(rec);
+      } catch {
+        if (!cancelled) setAyahTranslitLatin({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [surahId]);
+
   const metaLine = useMemo(() => {
     if (!surah) return '';
     const place =
@@ -111,22 +198,80 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
   const playAyah = async (row: QuranAyahRow) => {
     const key = `${row.surah}:${row.ayah}`;
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        allowsRecordingIOS: false,
+        staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+      audioCtxRef.current = null;
       await sound?.unloadAsync();
       const uri = mishariAlafasyAyahMp3(row.surah, row.ayah);
-      const { sound: s } = await Audio.Sound.createAsync({ uri });
+      const { sound: s } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: false, volume: 1 },
+        (st) => {
+          if (st.isLoaded && st.didJustFinish) {
+            setPlayingKey(null);
+            const ctx = audioCtxRef.current;
+            if (!ctx) return;
+            const left = ctx.playsRemaining - 1;
+            if (left > 0) {
+              audioCtxRef.current = { ...ctx, playsRemaining: left };
+              void (async () => {
+                try {
+                  await s.setPositionAsync(0);
+                  setPlayingKey(key);
+                  await s.playAsync();
+                } catch {
+                  setPlayingKey(null);
+                  audioCtxRef.current = null;
+                }
+              })();
+            } else {
+              audioCtxRef.current = null;
+              if (ctx.autoNext) {
+                const list = ayahsRef.current;
+                const idx = list.findIndex((a) => a.surah === ctx.row.surah && a.ayah === ctx.row.ayah);
+                const next = idx >= 0 ? list[idx + 1] : undefined;
+                if (next) void playAyah(next);
+              }
+            }
+          }
+        }
+      );
+      audioCtxRef.current = {
+        row,
+        playsRemaining: repeatTotal,
+        autoNext: autoNextAyah,
+      };
       setSound(s);
       setPlayingKey(key);
-      s.setOnPlaybackStatusUpdate((st) => {
-        if (st.isLoaded && st.didJustFinish) {
-          setPlayingKey(null);
-        }
-      });
+      await s.setRateAsync(playbackRate, true);
       await s.playAsync();
     } catch {
       setPlayingKey(null);
+      audioCtxRef.current = null;
     }
   };
+
+  useEffect(() => {
+    void sound?.setRateAsync(playbackRate, true);
+  }, [sound, playbackRate]);
+
+  useEffect(() => {
+    if (!autoPlayAyah || !initialAyah || ayahs.length === 0) return;
+    const row = ayahs.find((a) => a.ayah === initialAyah);
+    if (!row) return;
+    const tid = setTimeout(() => {
+      void playAyah(row);
+    }, 900);
+    return () => clearTimeout(tid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot autoplay on navigation params
+  }, [autoPlayAyah, initialAyah, surahId, ayahs.length]);
 
   const toggleBookmark = async (row: QuranAyahRow) => {
     const key = `${row.surah}:${row.ayah}`;
@@ -175,12 +320,59 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
     }
   };
 
+  const toggleInlineTafsir = async (row: QuranAyahRow) => {
+    const key = `${row.surah}:${row.ayah}`;
+    if (inlineTafsirKey === key) {
+      setInlineTafsirKey(null);
+      return;
+    }
+    setInlineTafsirKey(key);
+    if (inlineTafsirByKey[key]) return;
+    setInlineTafsirLoading(key);
+    try {
+      const tf = await fetchTafsirIbnKathirAr(key);
+      setInlineTafsirByKey((prev) => ({
+        ...prev,
+        [key]: {
+          text: stripHtmlToPlain(tf.textHtml),
+          attr: `${tf.resourceName} (Quran.com API, resource ${tf.resourceId})`,
+        },
+      }));
+    } catch {
+      setInlineTafsirByKey((prev) => ({
+        ...prev,
+        [key]: { text: t('surahScreen.offlineHint'), attr: '' },
+      }));
+    } finally {
+      setInlineTafsirLoading(null);
+    }
+  };
+
+  const openSurahStatusPicker = () => {
+    if (!surah) return;
+    Alert.alert(
+      t('surahScreen.surahStatusTitle'),
+      surah.nameTranslit,
+      [
+        ...SURAH_STATUS_OPTIONS.map((st) => ({
+          text: t(`surahStatus.${st}`),
+          onPress: () => setSurahStatus(surahId, st),
+        })),
+        { text: t('common.cancel'), style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const renderAyah = ({ item }: { item: QuranAyahRow }) => {
     const key = `${item.surah}:${item.ayah}`;
     const tr =
       transSlug && readMode !== 'arabic' ? getAyahTranslationText(item.surah, item.ayah, transSlug) : null;
     const showAr = readMode !== 'translation';
     const showTr = readMode !== 'arabic' && tr;
+    const latin = ayahTranslitLatin[item.ayah];
+    const middleReading =
+      latin && i18n.language.startsWith('ru') ? latinTranslitToRuPractice(latin) : latin || null;
 
     return (
       <View style={[styles.ayahRow, { borderColor: colors.border, maxWidth: width }]}>
@@ -215,9 +407,16 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityLabel={t('surahScreen.a11yTafsir')}
-              onPress={() => void openInsight(item, 'tafsir')}
+              onPress={() => void toggleInlineTafsir(item)}
             >
-              <Text style={[styles.actionLbl, { color: colors.textSecondary }]}>{t('surahScreen.actionTafsir')}</Text>
+              <Text
+                style={[
+                  styles.actionLbl,
+                  { color: inlineTafsirKey === key ? colors.accentGold : colors.textSecondary },
+                ]}
+              >
+                {t('surahScreen.actionTafsir')}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -232,10 +431,34 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
             {item.text}
           </Text>
         ) : null}
+        {showAr && middleReading ? (
+          <Text style={[styles.translit, { color: colors.textSecondary }]} selectable>
+            {middleReading}
+          </Text>
+        ) : null}
+        {showAr && latin && i18n.language.startsWith('ru') ? (
+          <Text style={[styles.translitLatinSub, { color: colors.textSecondary }]} selectable>
+            {latin}
+          </Text>
+        ) : null}
         {showTr ? (
           <Text style={[styles.trans, { color: colors.textSecondary }]} selectable>
             {tr}
           </Text>
+        ) : null}
+        {inlineTafsirKey === key ? (
+          <View style={{ marginTop: Spacing.md }}>
+            {inlineTafsirLoading === key ? <ActivityIndicator color={colors.accentGreen} /> : null}
+            {inlineTafsirByKey[key] ? (
+              <>
+                <Text style={[styles.tafsirAttr, { color: colors.textSecondary }]}>{inlineTafsirByKey[key].attr}</Text>
+                <Text style={[styles.tafsirBody, { color: colors.textPrimary }]}>{inlineTafsirByKey[key].text}</Text>
+                <Text style={[styles.tafsirDisclaimer, { color: colors.textSecondary }]}>
+                  {t('surahScreen.tafsirDisclaimer')}
+                </Text>
+              </>
+            ) : null}
+          </View>
         ) : null}
       </View>
     );
@@ -271,7 +494,55 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
           {i18n.language.startsWith('en') ? surah.nameEn : surah.nameRu}
         </Text>
         <Text style={[styles.meta, { color: colors.textSecondary }]}>{metaLine}</Text>
+        <TouchableOpacity onPress={openSurahStatusPicker} style={{ marginTop: Spacing.sm }}>
+          <Text style={[styles.statusPick, { color: colors.accentGold }]}>
+            {t('surahScreen.currentStatus', { status: t(`surahStatus.${surahProgress.status}`) })}
+          </Text>
+        </TouchableOpacity>
+        <View style={[styles.audioBar, { borderColor: colors.border }]}>
+          {[0.75, 1, 1.25].map((r) => (
+            <TouchableOpacity
+              key={r}
+              style={[
+                styles.audioChip,
+                { borderColor: colors.border },
+                playbackRate === r && { backgroundColor: colors.accentGreen },
+              ]}
+              onPress={() => setPlaybackRate(r)}
+            >
+              <Text style={{ color: playbackRate === r ? '#fff' : colors.textPrimary, fontSize: 11 }}>
+                {t('surahScreen.rateChip', { rate: r })}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {[1, 2, 3].map((n) => (
+            <TouchableOpacity
+              key={n}
+              style={[
+                styles.audioChip,
+                { borderColor: colors.border },
+                repeatTotal === n && { backgroundColor: colors.accentGold },
+              ]}
+              onPress={() => setRepeatTotal(n)}
+            >
+              <Text style={{ color: repeatTotal === n ? '#1a1a1a' : colors.textPrimary, fontSize: 11 }}>
+                {t('surahScreen.repeatChip', { n })}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[
+              styles.audioChip,
+              { borderColor: colors.border },
+              autoNextAyah && { backgroundColor: colors.statusRead },
+            ]}
+            onPress={() => setAutoNextAyah((v) => !v)}
+          >
+            <Text style={{ color: colors.textPrimary, fontSize: 11 }}>{t('surahScreen.autoNextShort')}</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={[styles.attribution, { color: colors.textSecondary }]}>{t('surahScreen.textAttribution')}</Text>
+        <Text style={[styles.attribution, { color: colors.textSecondary }]}>{t('surahScreen.translitAttribution')}</Text>
         <View style={styles.modeRow}>
           {READ_MODES.map((m) => (
             <TouchableOpacity
@@ -297,7 +568,23 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
         renderItem={renderAyah}
         keyExtractor={(item) => `${item.surah}:${item.ayah}`}
         contentContainerStyle={styles.listContent}
-        extraData={{ marks, playingKey, readMode, fontsLoaded }}
+        extraData={{
+          marks,
+          playingKey,
+          readMode,
+          fontsLoaded,
+          ayahTranslitLatin,
+          i18n: i18n.language,
+          inlineTafsirKey,
+          inlineTafsirByKey,
+          inlineTafsirLoading,
+          surahProgress,
+          playbackRate,
+          repeatTotal,
+          autoNextAyah,
+        }}
+        onViewableItemsChanged={viewabilityConfigCallbackPairs[0].onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfigCallbackPairs[0].viewabilityConfig}
       />
 
       <Modal visible={!!noteModal} transparent animationType="fade">
@@ -408,8 +695,23 @@ const styles = StyleSheet.create({
   nameRu: { fontSize: 20, fontWeight: '600', marginTop: 4, textAlign: 'center' },
   meta: { fontSize: 14, marginTop: 8, textAlign: 'center' },
   attribution: { fontSize: 10, marginTop: 10, textAlign: 'center', lineHeight: 14 },
+  statusPick: { fontSize: 13, textAlign: 'center', textDecorationLine: 'underline' },
+  audioBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: Spacing.md,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  audioChip: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1 },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Spacing.md, justifyContent: 'center' },
   modeChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1 },
+  tafsirAttr: { fontSize: 10, marginBottom: Spacing.xs },
+  tafsirBody: { fontSize: 14, lineHeight: 22 },
+  tafsirDisclaimer: { fontSize: 11, marginTop: Spacing.sm },
   listContent: { paddingVertical: Spacing.md, paddingBottom: Spacing.xl },
   ayahRow: {
     paddingVertical: Spacing.md,
@@ -427,6 +729,8 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     marginTop: Spacing.sm,
   },
+  translit: { marginTop: Spacing.sm, fontSize: 15, lineHeight: 22, fontStyle: 'italic' },
+  translitLatinSub: { marginTop: 4, fontSize: 12, lineHeight: 18, opacity: 0.85 },
   trans: { marginTop: Spacing.sm, fontSize: 15, lineHeight: 22 },
   overlay: {
     flex: 1,

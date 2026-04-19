@@ -5,6 +5,8 @@
   "scripts": {
     "quran:build": "node tools/build-quran-uthmani.mjs",
     "quran:translations": "node tools/build-quran-translations.mjs",
+    "quran:check-assets": "node tools/check-quran-checksum.mjs",
+    "quran:verify-tanzil": "node tools/verify-tanzil-local.mjs",
     "mobile:lint": "npm run lint --prefix apps/mobile",
     "mobile:typecheck": "npm run typecheck --prefix apps/mobile",
     "backend:dev": "npm run dev --prefix services/backend",

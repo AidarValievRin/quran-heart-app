@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, Platform } from 'react-native';
 import { Magnetometer } from 'expo-sensors';
+import * as Location from 'expo-location';
 import Svg, { G, Path, Line, Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -21,6 +22,8 @@ export function QiblaScreen() {
   const lon = useSettingsStore((s) => s.prayerLongitude);
 
   const [heading, setHeading] = useState<number | null>(null);
+  const [headingKind, setHeadingKind] = useState<'true' | 'mag' | 'sensor' | null>(null);
+  const hasGpsHeading = useRef(false);
 
   const qibla = useMemo(() => {
     if (lat == null || lon == null) return null;
@@ -29,16 +32,39 @@ export function QiblaScreen() {
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    let sub: { remove: () => void } | undefined;
+    let headingSub: Location.LocationSubscription | undefined;
+    let magSub: { remove: () => void } | undefined;
+
     (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        headingSub = await Location.watchHeadingAsync((hd) => {
+          const trueH = hd.trueHeading;
+          const magH = hd.magHeading;
+          const h = trueH >= 0 ? trueH : magH;
+          if (Number.isFinite(h)) {
+            hasGpsHeading.current = true;
+            setHeading(h);
+            setHeadingKind(trueH >= 0 ? 'true' : 'mag');
+          }
+        });
+      }
+
       const avail = await Magnetometer.isAvailableAsync();
-      if (!avail) return;
-      Magnetometer.setUpdateInterval(250);
-      sub = Magnetometer.addListener((m) => {
-        setHeading(headingFromMagnetometer(m.x, m.y));
-      });
+      if (avail) {
+        Magnetometer.setUpdateInterval(280);
+        magSub = Magnetometer.addListener((m) => {
+          if (hasGpsHeading.current) return;
+          setHeading(headingFromMagnetometer(m.x, m.y));
+          setHeadingKind('sensor');
+        });
+      }
     })();
-    return () => sub?.remove();
+
+    return () => {
+      headingSub?.remove();
+      magSub?.remove();
+    };
   }, []);
 
   const delta = useMemo(() => {
@@ -74,7 +100,11 @@ export function QiblaScreen() {
       </Text>
       {heading != null ? (
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
-          {t('tools.qibla.heading', { deg: Math.round(heading) })}
+          {headingKind === 'true'
+            ? t('tools.qibla.headingTrue', { deg: Math.round(heading) })
+            : headingKind === 'mag'
+              ? t('tools.qibla.headingMag', { deg: Math.round(heading) })
+              : t('tools.qibla.headingSensor', { deg: Math.round(heading) })}
         </Text>
       ) : (
         <Text style={[styles.meta, { color: colors.textSecondary }]}>{t('tools.qibla.noCompass')}</Text>

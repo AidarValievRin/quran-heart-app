@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  TextInput,
+  Alert,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +28,15 @@ const METHODS: PrayerMethodId[] = [
 ];
 
 function fmtTime(d: Date, locale: string): string {
-  return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const loc = locale.startsWith('ru') ? 'ru-RU' : 'en-US';
+  return d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function parseCoord(text: string): number | null {
+  const t = text.trim().replace(',', '.');
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function PrayerTimesScreen() {
@@ -42,6 +52,13 @@ export function PrayerTimesScreen() {
 
   const [now, setNow] = useState(() => new Date());
   const [locLoading, setLocLoading] = useState(false);
+  const [latInput, setLatInput] = useState('');
+  const [lonInput, setLonInput] = useState('');
+
+  useEffect(() => {
+    setLatInput(lat != null ? String(lat) : '');
+    setLonInput(lon != null ? String(lon) : '');
+  }, [lat, lon]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -59,28 +76,34 @@ export function PrayerTimesScreen() {
     setLocLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const pos = await Location.getCurrentPositionAsync({});
+      if (status !== 'granted') {
+        Alert.alert(t('tools.prayer.title'), t('tools.prayer.gpsDenied'));
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       setCoords(pos.coords.latitude, pos.coords.longitude);
+    } catch {
+      Alert.alert(t('tools.prayer.title'), t('tools.prayer.gpsError'));
     } finally {
       setLocLoading(false);
     }
-  }, [setCoords]);
+  }, [setCoords, t]);
 
-  if (lat == null || lon == null) {
-    return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: colors.bgMain }]}>
-        <Text style={{ color: colors.textPrimary, padding: Spacing.lg }}>{t('tools.prayer.noCoords')}</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.accentGreen }]} onPress={() => void fetchGps()}>
-          {locLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnTxt}>{t('tools.prayer.useGps')}</Text>
-          )}
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  const applyManual = useCallback(() => {
+    const la = parseCoord(latInput);
+    const lo = parseCoord(lonInput);
+    if (la == null || lo == null) {
+      Alert.alert(t('tools.prayer.title'), t('tools.prayer.invalidCoords'));
+      return;
+    }
+    if (la < -90 || la > 90 || lo < -180 || lo > 180) {
+      Alert.alert(t('tools.prayer.title'), t('tools.prayer.invalidCoords'));
+      return;
+    }
+    setCoords(la, lo);
+  }, [latInput, lonInput, setCoords, t]);
 
   const rows: { key: PrayerName; label: string }[] = [
     { key: 'fajr', label: t('tools.prayer.fajr') },
@@ -95,8 +118,9 @@ export function PrayerTimesScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bgMain }]}>
       <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
         <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>{t('tools.prayer.disclaimer')}</Text>
+
         <TouchableOpacity
-          style={[styles.btn, { backgroundColor: colors.accentGreen, marginBottom: Spacing.md }]}
+          style={[styles.btn, { backgroundColor: colors.accentGreen, marginBottom: Spacing.sm }]}
           onPress={() => void fetchGps()}
         >
           {locLoading ? (
@@ -106,7 +130,47 @@ export function PrayerTimesScreen() {
           )}
         </TouchableOpacity>
 
-        {next ? (
+        <Text style={[styles.section, { color: colors.textPrimary }]}>{t('tools.prayer.manualCoords')}</Text>
+        <View style={styles.rowInputs}>
+          <TextInput
+            style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgCard }]}
+            value={latInput}
+            onChangeText={setLatInput}
+            placeholder={t('tools.prayer.latPh')}
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.bgCard }]}
+            value={lonInput}
+            onChangeText={setLonInput}
+            placeholder={t('tools.prayer.lonPh')}
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+          />
+        </View>
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border }]}
+          onPress={applyManual}
+        >
+          <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{t('tools.prayer.applyManual')}</Text>
+        </TouchableOpacity>
+
+        {lat != null && lon != null ? (
+          <Text style={[styles.coords, { color: colors.textSecondary }]}>
+            {t('tools.prayer.currentCoords', { lat: lat.toFixed(5), lon: lon.toFixed(5) })}
+          </Text>
+        ) : (
+          <Text style={[styles.coords, { color: colors.textSecondary }]}>{t('tools.prayer.noCoords')}</Text>
+        )}
+
+        {lat == null || lon == null ? (
+          <Text style={[styles.warn, { color: colors.textSecondary }]}>{t('tools.prayer.needCoordsForTimes')}</Text>
+        ) : null}
+
+        {next && times ? (
           <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.bgCard }]}>
             <Text style={{ color: colors.textSecondary }}>{t('tools.prayer.next')}</Text>
             <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: '700' }}>
@@ -172,8 +236,13 @@ export function PrayerTimesScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   disclaimer: { fontSize: 11, lineHeight: 16, marginBottom: Spacing.sm },
-  btn: { marginHorizontal: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, alignItems: 'center' },
+  btn: { padding: Spacing.md, borderRadius: Radius.md, alignItems: 'center' },
   btnTxt: { color: '#fff', fontWeight: '700' },
+  section: { fontWeight: '700', marginTop: Spacing.lg, marginBottom: Spacing.sm },
+  rowInputs: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+  input: { flex: 1, borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md },
+  coords: { fontSize: 12, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+  warn: { fontSize: 12, marginBottom: Spacing.md },
   card: { padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, marginBottom: Spacing.md },
   row: {
     flexDirection: 'row',
@@ -183,7 +252,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: Spacing.sm,
   },
-  section: { fontWeight: '700', marginTop: Spacing.lg, marginBottom: Spacing.sm },
   chip: { padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, marginBottom: Spacing.sm },
   note: { fontSize: 11, marginTop: Spacing.lg },
 });

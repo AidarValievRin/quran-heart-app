@@ -36,6 +36,7 @@ export function ToolsHomeScreen({ navigation }: { navigation: Nav }) {
         {row(t('tools.names99.title'), 'Names99')}
         {row(t('tools.zakat.title'), 'Zakat')}
         {row(t('tools.mosque.title'), 'Mosque')}
+        {row(t('tools.dua.title'), 'DuaCollection')}
 
         <Text style={[styles.section, { color: colors.accentGreen }]}>{t('toolsHub.phase5')}</Text>
         {row(t('community.title'), 'CommunityHome')}
