@@ -31,7 +31,14 @@
     "plugins": [
       "expo-font",
       "expo-localization",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Приложение использует геолокацию для времени намаза и киблы."
+        }
+      ]
     ],
     "extra": {
       "eas": {

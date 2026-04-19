@@ -1,0 +1,15 @@
+{
+  "builtAt": "2026-04-19T17:28:15.242Z",
+  "files": [
+    {
+      "file": "src/data/quran/translation.ru.kuliev.bundle.json",
+      "sha256": "169c7c5b6a111021fc9d46c770a141743e7337fb9d0b8c76a10a7e6fa9a75f79",
+      "resource": "Russian Translation ( Elmir Kuliev )"
+    },
+    {
+      "file": "src/data/quran/translation.en.sahih.bundle.json",
+      "sha256": "cd011892b233ade5b6894e11d4284492ade2cfe3f1912dbaeae6299542740a83",
+      "resource": "Saheeh International"
+    }
+  ]
+}

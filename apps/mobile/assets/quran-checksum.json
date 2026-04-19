@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-04-19T17:01:50.539Z",
+  "algorithm": "SHA-256",
+  "files": [
+    {
+      "path": "src/data/quran/ayahs.bundle.json",
+      "sha256": "c42f7dd0cc63b654de745a893b7b6c5b4f8b09d983190cc9a4f89e6510ab8bab",
+      "description": "Quran Uthmani ayah text (Hafs) — build source see tools/build-quran-uthmani.mjs"
+    }
+  ]
+}

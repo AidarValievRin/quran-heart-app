@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Text } from 'react-native';
@@ -7,8 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { HeartScreen } from '../screens/HeartScreen';
 import { SurahScreen } from '../screens/SurahScreen';
 import { SearchScreen } from '../screens/SearchScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
-import { Colors } from '../theme';
+import { ProfileStack } from './ProfileStack';
+import { ToolsStack } from './ToolsStack';
+import { useAppTheme } from '../theme/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -24,10 +25,23 @@ function HeartStack() {
 
 export function AppNavigator() {
   const { t } = useTranslation();
-  const colors = Colors.light;
+  const { colors, resolvedScheme } = useAppTheme();
+  const navTheme = resolvedScheme === 'dark' ? DarkTheme : DefaultTheme;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      theme={{
+        ...navTheme,
+        colors: {
+          ...navTheme.colors,
+          background: colors.bgMain,
+          card: colors.bgCard,
+          text: colors.textPrimary,
+          border: colors.border,
+          primary: colors.accentGreen,
+        },
+      }}
+    >
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
@@ -46,9 +60,7 @@ export function AppNavigator() {
           component={HeartStack}
           options={{
             tabBarLabel: t('tabs.heart'),
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 22, color }}>♡</Text>
-            ),
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>♡</Text>,
           }}
         />
         <Tab.Screen
@@ -56,19 +68,23 @@ export function AppNavigator() {
           component={SearchScreen}
           options={{
             tabBarLabel: t('tabs.search'),
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 20, color }}>⌕</Text>
-            ),
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>⌕</Text>,
+          }}
+        />
+        <Tab.Screen
+          name="Tools"
+          component={ToolsStack}
+          options={{
+            tabBarLabel: t('tabs.tools'),
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>☆</Text>,
           }}
         />
         <Tab.Screen
           name="Profile"
-          component={ProfileScreen}
+          component={ProfileStack}
           options={{
             tabBarLabel: t('tabs.profile'),
-            tabBarIcon: ({ color }) => (
-              <Text style={{ fontSize: 20, color }}>◎</Text>
-            ),
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>◎</Text>,
           }}
         />
       </Tab.Navigator>

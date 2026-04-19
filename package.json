@@ -1,0 +1,13 @@
+{
+  "name": "quran-heart-app",
+  "private": true,
+  "description": "Monorepo root — mobile app lives in apps/mobile",
+  "scripts": {
+    "quran:build": "node tools/build-quran-uthmani.mjs",
+    "quran:translations": "node tools/build-quran-translations.mjs",
+    "mobile:lint": "npm run lint --prefix apps/mobile",
+    "mobile:typecheck": "npm run typecheck --prefix apps/mobile",
+    "backend:dev": "npm run dev --prefix services/backend",
+    "backend:install": "npm install --prefix services/backend"
+  }
+}

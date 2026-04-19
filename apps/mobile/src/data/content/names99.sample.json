@@ -1,0 +1,10 @@
+{
+  "attribution": "Sample subset for UI wiring; full verified list and Arabic forms require scholar review before release.",
+  "items": [
+    { "order": 1, "transliteration": "Ar-Rahman", "meaningRu": "Милостивый", "meaningEn": "The Most Gracious" },
+    { "order": 2, "transliteration": "Ar-Raheem", "meaningRu": "Милосердный", "meaningEn": "The Most Merciful" },
+    { "order": 3, "transliteration": "Al-Malik", "meaningRu": "Властелин", "meaningEn": "The King" },
+    { "order": 4, "transliteration": "Al-Quddus", "meaningRu": "Святой", "meaningEn": "The Most Sacred" },
+    { "order": 5, "transliteration": "As-Salam", "meaningRu": "Источник мира", "meaningEn": "The Source of Peace" }
+  ]
+}

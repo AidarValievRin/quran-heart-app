@@ -35,4 +35,5 @@ export const Colors = {
 } as const;
 
 export type ColorScheme = keyof typeof Colors;
-export type ThemeColors = typeof Colors.light;
+/** Active palette (light or dark) — same keys, different literals. */
+export type ThemeColors = (typeof Colors)[ColorScheme];

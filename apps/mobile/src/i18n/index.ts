@@ -1,9 +1,9 @@
-import i18n from 'i18next';
+import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import ru from './locales/ru';
 import en from './locales/en';
 
-i18n.use(initReactI18next).init({
+i18next.use(initReactI18next).init({
   resources: {
     ru: { translation: ru },
     en: { translation: en },
@@ -13,4 +13,4 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
-export default i18n;
+export default i18next;
