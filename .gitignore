@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+apps/mobile/node_modules/
+
+# Expo
+apps/mobile/.expo/
+apps/mobile/dist/
+
+# Android
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+apps/mobile/android/local.properties
+
+# iOS
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+apps/mobile/ios/.xcode.env.local
+
+# Env files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+apps/mobile/.env
+apps/mobile/.env.local
+
+# Build artifacts
+*.apk
+*.ipa
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+
+# TypeScript
+*.tsbuildinfo
