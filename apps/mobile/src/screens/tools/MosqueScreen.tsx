@@ -6,10 +6,12 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
 
-/** OSM expects #map=zoom/lat/lon (lat/lon in decimal degrees). */
-function osmMosqueNearUrl(lat: number, lon: number, zoom = 15): string {
-  const q = encodeURIComponent(`mosque near ${lat},${lon}`);
-  return `https://www.openstreetmap.org/search?query=${q}#map=${zoom}/${lat}/${lon}`;
+function googleMapsNearUrl(lat: number, lon: number): string {
+  return `https://www.google.com/maps/search/mosque/@${lat},${lon},15z`;
+}
+
+function yandexMapsNearUrl(lat: number, lon: number): string {
+  return `https://yandex.ru/maps/?ll=${lon},${lat}&z=15&text=%D0%BC%D0%B5%D1%87%D0%B5%D1%82%D1%8C&type=business`;
 }
 
 export function MosqueScreen() {
@@ -18,25 +20,33 @@ export function MosqueScreen() {
   const lat = useSettingsStore((s) => s.prayerLatitude);
   const lon = useSettingsStore((s) => s.prayerLongitude);
 
-  const openOsm = useCallback(async () => {
+  const openGoogle = useCallback(async () => {
     const url =
       lat != null && lon != null
-        ? osmMosqueNearUrl(lat, lon)
-        : 'https://www.openstreetmap.org/search?query=mosque';
+        ? googleMapsNearUrl(lat, lon)
+        : 'https://www.google.com/maps/search/mosque/';
+    await WebBrowser.openBrowserAsync(url);
+  }, [lat, lon]);
+
+  const openYandex = useCallback(async () => {
+    const url =
+      lat != null && lon != null
+        ? yandexMapsNearUrl(lat, lon)
+        : 'https://yandex.ru/maps/?text=%D0%BC%D0%B5%D1%87%D0%B5%D1%82%D1%8C';
     await WebBrowser.openBrowserAsync(url);
   }, [lat, lon]);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bgMain }]}>
       <Text style={[styles.body, { color: colors.textSecondary }]}>{t('tools.mosque.body')}</Text>
-      <TouchableOpacity style={[styles.btn, { backgroundColor: colors.accentGreen }]} onPress={() => void openOsm()}>
-        <Text style={styles.btnTxt}>{t('tools.mosque.openOsm')}</Text>
+      <TouchableOpacity style={[styles.btn, { backgroundColor: colors.accentGreen }]} onPress={() => void openGoogle()}>
+        <Text style={styles.btnTxt}>{t('tools.mosque.openGoogle')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.btn, { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border }]}
-        onPress={() => void WebBrowser.openBrowserAsync('https://www.openstreetmap.org/copyright')}
+        onPress={() => void openYandex()}
       >
-        <Text style={{ color: colors.textPrimary }}>{t('tools.mosque.osmAttrib')}</Text>
+        <Text style={{ color: colors.textPrimary }}>{t('tools.mosque.openYandex')}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

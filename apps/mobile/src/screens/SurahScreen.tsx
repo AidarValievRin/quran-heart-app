@@ -27,7 +27,7 @@ import { useSettingsStore } from '../store/settingsStore';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Spacing, Radius } from '../theme';
 import { mishariAlafasyAyahMp3 } from '../audio/everyAyah';
-import { getBookmark, removeBookmark, upsertBookmark } from '../db/bookmarksRepo';
+import { listBookmarks, removeBookmark, upsertBookmark } from '../db/bookmarksRepo';
 import { getNoteForAyah, saveNote } from '../db/notesRepo';
 import { seedMemorizationIfAbsent, upsertAfterGrade } from '../db/memorizationRepo';
 import {
@@ -128,11 +128,10 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
     quranTranslation === 'kuliev' || quranTranslation === 'sahih' ? quranTranslation : null;
 
   const refreshMarks = useCallback(async () => {
+    const all = await listBookmarks();
+    const bySurah = new Set(all.filter((b) => b.surah === surahId).map((b) => b.ayah));
     const m: Record<string, boolean> = {};
-    for (const a of ayahs) {
-      const b = await getBookmark(surahId, a.ayah);
-      m[`${a.surah}:${a.ayah}`] = !!b;
-    }
+    for (const a of ayahs) m[`${a.surah}:${a.ayah}`] = bySurah.has(a.ayah);
     setMarks(m);
   }, [ayahs, surahId]);
 

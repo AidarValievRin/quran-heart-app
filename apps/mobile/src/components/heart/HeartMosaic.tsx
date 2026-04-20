@@ -313,7 +313,7 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
                       stroke={isActive || isPressed ? themeColors.accentGold : themeColors.border}
                       strokeWidth={isActive ? 1.5 : isPressed ? 1.2 : 0.5}
                     />
-                    {fontsLoaded && side >= 14 ? (
+                    {fontsLoaded && side >= 10 ? (
                       <>
                         <SvgText
                           x={cx}

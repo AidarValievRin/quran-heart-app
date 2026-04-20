@@ -6,7 +6,7 @@ import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
 import bundle from '../../data/content/names99.bundle.json';
 
-type Item = (typeof bundle.items)[number];
+type Item = (typeof bundle.items)[number] & { descriptionRu?: string };
 
 export function Names99Screen() {
   const { t, i18n } = useTranslation();
@@ -57,11 +57,13 @@ export function Names99Screen() {
               </TouchableOpacity>
               {expanded ? (
                 <View style={{ marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
+                  {item.descriptionRu ? (
+                    <Text style={{ color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: Spacing.sm }}>
+                      {item.descriptionRu}
+                    </Text>
+                  ) : null}
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, fontStyle: 'italic', lineHeight: 16 }}>
                     {t('tools.names99.detailNote')}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: Spacing.sm }}>
-                    {t('tools.names99.sourceLine', { url: bundle.sourceUrl })}
                   </Text>
                 </View>
               ) : null}

@@ -118,7 +118,7 @@ export function HeartScreen({ navigation }: any) {
         </Text>
       </View>
 
-      <ScrollView style={styles.heartArea} scrollEnabled bounces>
+      <ScrollView style={[styles.heartArea, { backgroundColor: colors.bgMain }]} scrollEnabled bounces>
         <HeartMosaic
           themeColors={colors}
           colorMode={colorMode}

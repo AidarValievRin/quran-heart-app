@@ -10,7 +10,7 @@ import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing } from '../../theme';
 
 function headingFromMagnetometer(x: number, y: number): number {
-  let angle = Math.atan2(y, x) * (180 / Math.PI);
+  let angle = Math.atan2(x, y) * (180 / Math.PI);
   angle = (angle + 360) % 360;
   return angle;
 }

@@ -380,12 +380,11 @@ export default {
     names99: {
       title: '99 names',
       disclaimer:
-        'Full list with citation-style references in the bundled table. Glosses are short English meanings; consult a qualified scholar for theology.',
-      tapExpand: 'About the source',
+        'Russian descriptions are based on classical tafasir (Ibn Kathir, al-Sa\'di, al-Qurtubi) for educational purposes. Consult a qualified scholar for precise theological formulations.',
+      tapExpand: 'Learn more',
       tapCollapse: 'Collapse',
       detailNote:
-        'Ordering and glosses follow the comparative table on Wikipedia (Names of God in Islam), CC BY-SA; classical lists differ.',
-      sourceLine: 'Table source: {{url}}',
+        'Description based on classical tafasir. List and ordering adapted from Wikipedia (Names of God in Islam), CC BY-SA. Classical lists may differ — follow your scholar\'s opinion.',
     },
     dua: {
       title: 'Duas (guides)',
@@ -427,9 +426,9 @@ export default {
     },
     mosque: {
       title: 'Nearby mosques',
-      body: 'Opens OpenStreetMap in the browser. Uses your saved coordinates, centers the map, and searches for mosques nearby.',
-      openOsm: 'Open map near me',
-      osmAttrib: '© OpenStreetMap contributors',
+      body: 'Opens a map app to find mosques near your saved coordinates.',
+      openGoogle: 'Search in Google Maps',
+      openYandex: 'Search in Yandex Maps',
     },
   },
   community: {

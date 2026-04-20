@@ -13,7 +13,7 @@ export function SurahIndexScreen() {
 
   const openSurah = useCallback(
     (surahId: number) => {
-      navigation.navigate('Heart', { screen: 'Surah', params: { surahId } });
+      navigation.getParent()?.navigate('Heart', { screen: 'Surah', params: { surahId } });
     },
     [navigation]
   );

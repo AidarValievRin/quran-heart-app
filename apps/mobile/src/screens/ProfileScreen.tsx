@@ -80,7 +80,7 @@ export function ProfileScreen() {
               })}
               colors={colors}
               onPress={() =>
-                navigation.navigate('Heart', {
+                navigation.getParent()?.navigate('Heart', {
                   screen: 'Surah',
                   params: { surahId: lastRead.sid, ayah: lastRead.ay },
                 })
