@@ -71,7 +71,12 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   // Taller canvas to accommodate anatomical heart proportions
   const canvasH = width * 1.35;
   const { i18n } = useTranslation();
-  const { getSurahProgress } = useProgressStore();
+  const progressMap = useProgressStore((s) => s.progress);
+  const getSurahProgress = useCallback(
+    (surahId: number) =>
+      progressMap[surahId] ?? { surahId, status: 'unread' as SurahStatus, memorizedAyahs: [] },
+    [progressMap]
+  );
   const [pressedId, setPressedId] = useState<number | null>(null);
 
   const [fontsLoaded] = useFonts({ Amiri_400Regular, Amiri_700Bold });

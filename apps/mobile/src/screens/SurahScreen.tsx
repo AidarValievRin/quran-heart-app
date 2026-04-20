@@ -103,13 +103,13 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
   const [inlineTafsirLoading, setInlineTafsirLoading] = useState<string | null>(null);
   const [inlineTafsirByKey, setInlineTafsirByKey] = useState<Record<string, { text: string; attr: string }>>({});
   const setSurahStatus = useProgressStore((s) => s.setSurahStatus);
-  const surahProgress: SurahProgress = useProgressStore((s) => {
-    if (!Number.isFinite(surahId) || surahId < 1 || surahId > 114) {
-      return { surahId: 1, status: 'unread' as const, memorizedAyahs: [] };
-    }
-    const p = s.progress[surahId];
-    return p ?? { surahId, status: 'unread', memorizedAyahs: [] };
-  });
+  const storedSurahProgress = useProgressStore((s) =>
+    Number.isFinite(surahId) && surahId >= 1 && surahId <= 114 ? s.progress[surahId] : undefined
+  );
+  const surahProgress: SurahProgress = useMemo(() => {
+    const safeId = Number.isFinite(surahId) && surahId >= 1 && surahId <= 114 ? surahId : 1;
+    return storedSurahProgress ?? { surahId: safeId, status: 'unread' as const, memorizedAyahs: [] };
+  }, [storedSurahProgress, surahId]);
 
   const [noteModal, setNoteModal] = useState<QuranAyahRow | null>(null);
   const [noteBody, setNoteBody] = useState('');
@@ -123,7 +123,8 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
 
   const [marks, setMarks] = useState<Record<string, boolean>>({});
   const [ayahTranslitLatin, setAyahTranslitLatin] = useState<Record<number, string>>({});
-  const lastReading = useReadingProgressStore((s) => ({ sid: s.lastSurahId, ay: s.lastAyah }));
+  const lastReadSurahId = useReadingProgressStore((s) => s.lastSurahId);
+  const lastReadAyah = useReadingProgressStore((s) => s.lastAyah);
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: { item: QuranAyahRow; isViewable?: boolean }[] }) => {
       const top = viewableItems.find((v) => v.isViewable)?.item;
@@ -189,12 +190,12 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
 
   useEffect(() => {
     if (initialAyah || ayahs.length === 0) return;
-    if (lastReading.sid !== surahId || lastReading.ay <= 0) return;
-    const idx = ayahs.findIndex((a) => a.ayah === lastReading.ay);
+    if (lastReadSurahId !== surahId || lastReadAyah <= 0) return;
+    const idx = ayahs.findIndex((a) => a.ayah === lastReadAyah);
     if (idx < 0) return;
     const tid = setTimeout(() => scrollToAyahIndex(idx, false), 400);
     return () => clearTimeout(tid);
-  }, [initialAyah, ayahs, surahId, lastReading.sid, lastReading.ay, scrollToAyahIndex]);
+  }, [initialAyah, ayahs, surahId, lastReadSurahId, lastReadAyah, scrollToAyahIndex]);
 
   useEffect(() => {
     let cancelled = false;

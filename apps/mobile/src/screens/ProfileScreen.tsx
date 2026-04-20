@@ -26,8 +26,9 @@ export function ProfileScreen() {
   const profileOrnamentId = useSettingsStore((s) => s.profileOrnamentId) ?? 0;
   const streakDays = useActivityStore((s) => s.streakDays);
   const quranMinutesApprox = useActivityStore((s) => s.quranMinutesApprox);
-  const lastRead = useReadingProgressStore((s) => ({ sid: s.lastSurahId, ay: s.lastAyah }));
-  const lastSurahMeta = lastRead.sid > 0 ? SURAHS[lastRead.sid - 1] : undefined;
+  const lastSurahId = useReadingProgressStore((s) => s.lastSurahId);
+  const lastAyah = useReadingProgressStore((s) => s.lastAyah);
+  const lastSurahMeta = lastSurahId > 0 ? SURAHS[lastSurahId - 1] : undefined;
   const { colors } = useAppTheme();
 
   return (
@@ -72,11 +73,11 @@ export function ProfileScreen() {
         </View>
 
         <View style={styles.menu}>
-          {lastSurahMeta && lastRead.ay > 0 ? (
+          {lastSurahMeta && lastAyah > 0 ? (
             <MenuRow
               label={t('profile.continueReading', {
                 surah: lastSurahMeta.nameTranslit,
-                ayah: lastRead.ay,
+                ayah: lastAyah,
               })}
               colors={colors}
               onPress={() =>
@@ -85,7 +86,7 @@ export function ProfileScreen() {
                     name: 'Heart',
                     params: {
                       screen: 'Surah',
-                      params: { surahId: lastRead.sid, ayah: lastRead.ay },
+                      params: { surahId: lastSurahId, ayah: lastAyah },
                     },
                   })
                 )

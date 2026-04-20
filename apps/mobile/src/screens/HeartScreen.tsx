@@ -28,7 +28,13 @@ const COLOR_MODES: HeartColorMode[] = ['status', 'juz', 'place', 'length'];
 
 export function HeartScreen({ navigation }: any) {
   const { t } = useTranslation();
-  const { getSurahProgress, setSurahStatus } = useProgressStore();
+  const progressMap = useProgressStore((s) => s.progress);
+  const setSurahStatus = useProgressStore((s) => s.setSurahStatus);
+  const getSurahProgress = useCallback(
+    (surahId: number) =>
+      progressMap[surahId] ?? { surahId, status: 'unread' as SurahStatus, memorizedAyahs: [] },
+    [progressMap]
+  );
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [colorMode, setColorMode] = useState<HeartColorMode>('status');
   const [showColorPicker, setShowColorPicker] = useState(false);

@@ -15,6 +15,8 @@ const OUT = path.resolve(__dirname, '../apps/mobile/src/components/heart/anatomi
 const svg = fs.readFileSync(SVG_PATH, 'utf8');
 
 // Grab first <path d="..."/> — the main outline in this traced SVG.
+// This SVG contains many subpaths (outer silhouette + internal anatomical
+// detail). We'll split them below and keep only the largest by bbox area.
 const m = svg.match(/<path d="([\s\S]*?)"\s*\/>/);
 if (!m) throw new Error('No <path> found.');
 const rawD = m[1];
@@ -41,10 +43,10 @@ function bez(p0, p1, p2, p3, t) {
 // Transform: translate(0,1040) scale(0.1,-0.1) → (x,y) ↦ (0.1x, 1040 - 0.1y)
 const tx = ([x, y]) => [x * 0.1, 1040 - y * 0.1];
 
-// Walk the path, sample curves, collect polygon.
+// Walk the path, sample curves, collect per-subpath polygons + transformed
+// command strings so we can pick the largest subpath afterwards.
 const tokens = [...tokenize(rawD)];
 let i = 0;
-const poly = [];
 let cur = [0, 0];   // current point (raw coords)
 let start = [0, 0]; // subpath start
 let lastCmd = '';
@@ -58,20 +60,22 @@ function readNums(n) {
   return arr;
 }
 
-// Transformed-space path builder for the output d string.
-// We emit absolute commands in transformed space for simplicity.
-const outParts = [];
-function emitM(p) { outParts.push(`M ${p[0].toFixed(2)} ${p[1].toFixed(2)}`); }
-function emitL(p) { outParts.push(`L ${p[0].toFixed(2)} ${p[1].toFixed(2)}`); }
-function emitC(c1, c2, p) {
-  outParts.push(`C ${c1[0].toFixed(2)} ${c1[1].toFixed(2)} ${c2[0].toFixed(2)} ${c2[1].toFixed(2)} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`);
-}
-function emitZ() { outParts.push('Z'); }
+const subpaths = []; // [{ poly: [[x,y]...], parts: ['M ...', 'C ...', 'Z'] }]
+let curSub = null;
 
-function pushPolyPoint(raw) {
+function startSubpath(raw) {
+  curSub = { poly: [], parts: [] };
+  subpaths.push(curSub);
   const p = tx(raw);
-  poly.push(p);
+  curSub.parts.push(`M ${p[0].toFixed(2)} ${p[1].toFixed(2)}`);
+  curSub.poly.push(p);
 }
+function emitL(p) { curSub.parts.push(`L ${p[0].toFixed(2)} ${p[1].toFixed(2)}`); }
+function emitC(c1, c2, p) {
+  curSub.parts.push(`C ${c1[0].toFixed(2)} ${c1[1].toFixed(2)} ${c2[0].toFixed(2)} ${c2[1].toFixed(2)} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`);
+}
+function emitZ() { curSub.parts.push('Z'); }
+function pushPolyPoint(raw) { curSub.poly.push(tx(raw)); }
 
 while (i < tokens.length) {
   const tok = tokens[i];
@@ -81,7 +85,6 @@ while (i < tokens.length) {
     i++;
     lastCmd = cmd;
   } else {
-    // Implicit repeat of previous command
     cmd = lastCmd === 'M' ? 'L' : lastCmd === 'm' ? 'l' : lastCmd;
   }
 
@@ -92,34 +95,36 @@ while (i < tokens.length) {
     const [x, y] = readNums(2);
     cur = abs ? [x, y] : [cur[0] + x, cur[1] + y];
     start = [...cur];
-    emitM(tx(cur));
-    pushPolyPoint(cur);
+    startSubpath(cur);
     lastCtrl = null;
   } else if (c === 'l') {
+    if (!curSub) startSubpath(cur);
     const [x, y] = readNums(2);
     cur = abs ? [x, y] : [cur[0] + x, cur[1] + y];
     emitL(tx(cur));
     pushPolyPoint(cur);
     lastCtrl = null;
   } else if (c === 'h') {
+    if (!curSub) startSubpath(cur);
     const [x] = readNums(1);
     cur = abs ? [x, cur[1]] : [cur[0] + x, cur[1]];
     emitL(tx(cur));
     pushPolyPoint(cur);
     lastCtrl = null;
   } else if (c === 'v') {
+    if (!curSub) startSubpath(cur);
     const [y] = readNums(1);
     cur = abs ? [cur[0], y] : [cur[0], cur[1] + y];
     emitL(tx(cur));
     pushPolyPoint(cur);
     lastCtrl = null;
   } else if (c === 'c') {
+    if (!curSub) startSubpath(cur);
     const [x1, y1, x2, y2, x, y] = readNums(6);
     const p0 = [...cur];
     const p1 = abs ? [x1, y1] : [cur[0] + x1, cur[1] + y1];
     const p2 = abs ? [x2, y2] : [cur[0] + x2, cur[1] + y2];
     const p3 = abs ? [x, y]   : [cur[0] + x,  cur[1] + y];
-    // Sample for polygon
     for (let t = 0.1; t <= 1.0001; t += 0.1) {
       const pt = bez(p0, p1, p2, p3, t);
       pushPolyPoint(pt);
@@ -128,6 +133,7 @@ while (i < tokens.length) {
     cur = p3;
     lastCtrl = p2;
   } else if (c === 's') {
+    if (!curSub) startSubpath(cur);
     const [x2, y2, x, y] = readNums(4);
     const p0 = [...cur];
     const p1 = lastCtrl ? [2*cur[0] - lastCtrl[0], 2*cur[1] - lastCtrl[1]] : [...cur];
@@ -141,15 +147,37 @@ while (i < tokens.length) {
     cur = p3;
     lastCtrl = p2;
   } else if (c === 'z') {
-    emitZ();
+    if (curSub) emitZ();
     cur = [...start];
     lastCtrl = null;
   } else {
-    // Unsupported command — skip one number set
     console.warn('Unsupported command:', cmd);
     readNums(2);
   }
 }
+
+// Pick the subpath with the largest bbox area → the outer silhouette.
+function bbox(pts) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) {
+    if (x < x0) x0 = x; if (y < y0) y0 = y;
+    if (x > x1) x1 = x; if (y > y1) y1 = y;
+  }
+  return { x0, y0, x1, y1, area: (x1 - x0) * (y1 - y0) };
+}
+console.log('Subpaths:', subpaths.length);
+subpaths.forEach((sp, idx) => {
+  const b = bbox(sp.poly);
+  console.log(`  [${idx}] pts=${sp.poly.length} bbox=(${b.x0.toFixed(1)},${b.y0.toFixed(1)})-(${b.x1.toFixed(1)},${b.y1.toFixed(1)}) area=${b.area.toFixed(0)}`);
+});
+
+const outer = subpaths.reduce((best, sp) =>
+  bbox(sp.poly).area > bbox(best.poly).area ? sp : best
+, subpaths[0]);
+console.log('Chose subpath with', outer.poly.length, 'points as outer silhouette.');
+
+const poly = outer.poly;
+const outParts = outer.parts;
 
 // Compute bounding box of polygon in transformed (viewBox) coords.
 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
