@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { listNotes, type NoteRow } from '../db/notesRepo';
 import { SURAHS } from '../data/surahsMeta';
@@ -32,10 +32,15 @@ export function NotesScreen() {
             <TouchableOpacity
               style={[styles.row, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
               onPress={() =>
-                navigation.getParent()?.navigate('Heart', {
-                  screen: 'Surah',
-                  params: { surahId: item.surah, ayah: item.ayah },
-                })
+                navigation.dispatch(
+                  CommonActions.navigate({
+                    name: 'Heart',
+                    params: {
+                      screen: 'Surah',
+                      params: { surahId: item.surah, ayah: item.ayah },
+                    },
+                  })
+                )
               }
             >
               <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>

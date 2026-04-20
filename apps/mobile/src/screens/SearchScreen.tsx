@@ -8,29 +8,44 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { searchQuranSections } from '../lib/quranSearch';
+import type { Surah } from '../data/types';
 import { HighlightedText } from '../lib/searchHighlight';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Spacing, Radius } from '../theme';
 
-export function SearchScreen({ navigation }: { navigation: { navigate: (a: string, b?: object) => void } }) {
+export function SearchScreen() {
+  const navigation = useNavigation();
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const [query, setQuery] = React.useState('');
   const deferredQuery = useDeferredValue(query);
 
-  const { surahs, ayahs } = useMemo(
-    () => searchQuranSections(deferredQuery),
-    [deferredQuery]
-  );
+  const { surahs, ayahs } = useMemo(() => {
+    try {
+      return searchQuranSections(deferredQuery);
+    } catch {
+      return { surahs: [] as Surah[], ayahs: [] };
+    }
+  }, [deferredQuery]);
 
   const showEmptyHint = query.length > 0 && query.length < 2;
+  const searchSettled = deferredQuery === query;
   const showNoResults =
-    query.length >= 2 && surahs.length === 0 && ayahs.length === 0 && deferredQuery === query;
+    query.length >= 2 && searchSettled && surahs.length === 0 && ayahs.length === 0;
 
   const goSurah = (surahId: number, ayah?: number) => {
-    navigation.navigate('Heart', { screen: 'Surah', params: { surahId, ayah } });
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: 'Heart',
+        params: {
+          screen: 'Surah',
+          params: ayah != null ? { surahId, ayah } : { surahId },
+        },
+      })
+    );
   };
 
   return (

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { getAllAyahs } from '../../data/quran/ayahIndex';
 import { getAyahTranslationText } from '../../data/quran/translationIndex';
@@ -7,7 +8,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
 
-type Nav = { getParent: () => { navigate: (n: string, p?: object) => void } | undefined };
+type Nav = { dispatch: (a: unknown) => void };
 
 function dayOfYear(d: Date): number {
   const start = new Date(d.getFullYear(), 0, 0);
@@ -30,7 +31,15 @@ export function AyahOfDayScreen({ navigation }: { navigation: Nav }) {
   const tr = slug ? getAyahTranslationText(row.surah, row.ayah, slug) : null;
 
   const open = () => {
-    navigation.getParent()?.navigate('Heart', { screen: 'Surah', params: { surahId: row.surah, ayah: row.ayah } });
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: 'Heart',
+        params: {
+          screen: 'Surah',
+          params: { surahId: row.surah, ayah: row.ayah },
+        },
+      })
+    );
   };
 
   return (

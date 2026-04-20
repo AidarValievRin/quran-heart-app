@@ -15,7 +15,7 @@ const surahStartIndex: number[] = (() => {
 })();
 
 export function getAyahsForSurah(surahNumber: number): QuranAyahRow[] {
-  if (surahNumber < 1 || surahNumber > 114) return [];
+  if (!Number.isFinite(surahNumber) || surahNumber < 1 || surahNumber > 114) return [];
   const start = surahStartIndex[surahNumber];
   if (start === -1) return [];
   const out: QuranAyahRow[] = [];

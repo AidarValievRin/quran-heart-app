@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Text, SectionList, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { listBookmarks, type BookmarkRow } from '../db/bookmarksRepo';
 import { SURAHS } from '../data/surahsMeta';
@@ -47,10 +47,15 @@ export function BookmarksScreen() {
             <TouchableOpacity
               style={[styles.row, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
               onPress={() =>
-                navigation.getParent()?.navigate('Heart', {
-                  screen: 'Surah',
-                  params: { surahId: item.surah, ayah: item.ayah },
-                })
+                navigation.dispatch(
+                  CommonActions.navigate({
+                    name: 'Heart',
+                    params: {
+                      screen: 'Surah',
+                      params: { surahId: item.surah, ayah: item.ayah },
+                    },
+                  })
+                )
               }
             >
               <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>

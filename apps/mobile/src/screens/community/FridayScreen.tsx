@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
 
 type Nav = {
-  getParent: () => { navigate: (n: string, p?: object) => void } | undefined;
+  dispatch: (a: unknown) => void;
   navigate: (n: string) => void;
 };
 
@@ -16,7 +17,12 @@ export function FridayScreen({ navigation }: { navigation: Nav }) {
   const isFriday = useMemo(() => new Date().getDay() === 5, []);
 
   const openKahf = () => {
-    navigation.getParent()?.navigate('Heart', { screen: 'Surah', params: { surahId: 18 } });
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: 'Heart',
+        params: { screen: 'Surah', params: { surahId: 18 } },
+      })
+    );
   };
 
   return (

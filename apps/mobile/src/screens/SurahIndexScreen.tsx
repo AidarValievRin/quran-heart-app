@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { SURAHS } from '../data/surahsMeta';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Spacing, Radius } from '../theme';
@@ -13,7 +13,12 @@ export function SurahIndexScreen() {
 
   const openSurah = useCallback(
     (surahId: number) => {
-      navigation.getParent()?.navigate('Heart', { screen: 'Surah', params: { surahId } });
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: 'Heart',
+          params: { screen: 'Surah', params: { surahId } },
+        })
+      );
     },
     [navigation]
   );

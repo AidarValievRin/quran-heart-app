@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { Spacing, Radius } from '../../theme';
@@ -14,8 +15,8 @@ import { ADHKAR_ROUTINE_ITEMS, type AdhkarRoutinePeriod } from '../../data/adhka
 import { useAdhkarDailyStore } from '../../store/adhkarDailyStore';
 
 type Nav = {
+  dispatch: (a: unknown) => void;
   navigate: (name: string, params?: object) => void;
-  getParent: () => { navigate: (n: string, p?: object) => void } | undefined;
 };
 
 const QUICK: { key: string; surahId: number }[] = [
@@ -35,7 +36,15 @@ export function AdhkarScreen({ navigation }: { navigation: Nav }) {
   const readCount = useAdhkarDailyStore((s) => s.readCountToday);
 
   const openSurah = (surahId: number, ayah?: number) => {
-    navigation.getParent()?.navigate('Heart', { screen: 'Surah', params: { surahId, ayah } });
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: 'Heart',
+        params: {
+          screen: 'Surah',
+          params: ayah != null ? { surahId, ayah } : { surahId },
+        },
+      })
+    );
   };
 
   const routineList =

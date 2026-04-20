@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { useProgressStore } from '../store/progressStore';
 import { useReadingProgressStore } from '../store/readingProgressStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -80,10 +80,15 @@ export function ProfileScreen() {
               })}
               colors={colors}
               onPress={() =>
-                navigation.getParent()?.navigate('Heart', {
-                  screen: 'Surah',
-                  params: { surahId: lastRead.sid, ayah: lastRead.ay },
-                })
+                navigation.dispatch(
+                  CommonActions.navigate({
+                    name: 'Heart',
+                    params: {
+                      screen: 'Surah',
+                      params: { surahId: lastRead.sid, ayah: lastRead.ay },
+                    },
+                  })
+                )
               }
             />
           ) : null}

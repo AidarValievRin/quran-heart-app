@@ -12,10 +12,9 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  FlatList,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { FlashList } from '@shopify/flash-list';
-import type { FlashListRef } from '@shopify/flash-list';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { useTranslation } from 'react-i18next';
 import { useFonts, Amiri_400Regular, Amiri_700Bold } from '@expo-google-fonts/amiri';
@@ -56,19 +55,41 @@ const SURAH_STATUS_OPTIONS: SurahStatus[] = [
 
 const READ_MODES = ['standard', 'arabic', 'translation'] as const satisfies readonly ReadMode[];
 
+function parseSurahId(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.floor(raw);
+  if (typeof raw === 'string') {
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  return NaN;
+}
+
+function parseAyahNum(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.floor(raw);
+  if (typeof raw === 'string') {
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 export function SurahScreen({ route, navigation }: { route: any; navigation: any }) {
-  const { surahId, ayah: initialAyah, autoPlayAyah } = (route.params ?? {}) as {
-    surahId: number;
-    ayah?: number;
+  const params = (route?.params ?? {}) as {
+    surahId?: unknown;
+    ayah?: unknown;
     autoPlayAyah?: boolean;
   };
-  const surah = SURAHS[surahId - 1];
+  const surahId = parseSurahId(params.surahId);
+  const initialAyah = parseAyahNum(params.ayah);
+  const autoPlayAyah = params.autoPlayAyah === true;
+  const surah = surahId >= 1 && surahId <= 114 ? SURAHS[surahId - 1] : undefined;
   const { t, i18n } = useTranslation();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const [fontsLoaded] = useFonts({ Amiri_400Regular, Amiri_700Bold });
   const quranTranslation = useSettingsStore((s) => s.quranTranslation);
-  const listRef = useRef<FlashListRef<QuranAyahRow>>(null);
+  const listRef = useRef<FlatList<QuranAyahRow>>(null);
 
   const [readMode, setReadMode] = useState<ReadMode>('standard');
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -83,6 +104,9 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
   const [inlineTafsirByKey, setInlineTafsirByKey] = useState<Record<string, { text: string; attr: string }>>({});
   const setSurahStatus = useProgressStore((s) => s.setSurahStatus);
   const surahProgress: SurahProgress = useProgressStore((s) => {
+    if (!Number.isFinite(surahId) || surahId < 1 || surahId > 114) {
+      return { surahId: 1, status: 'unread' as const, memorizedAyahs: [] };
+    }
     const p = s.progress[surahId];
     return p ?? { surahId, status: 'unread', memorizedAyahs: [] };
   });
@@ -145,26 +169,37 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
     };
   }, [sound]);
 
-  useEffect(() => {
-    if (!initialAyah || !listRef.current || ayahs.length === 0) return;
-    const idx = ayahs.findIndex((a) => a.ayah === initialAyah);
-    if (idx >= 0) {
-      setTimeout(() => listRef.current?.scrollToIndex({ index: idx, animated: true }), 300);
+  const scrollToAyahIndex = useCallback((index: number, animated: boolean) => {
+    const list = listRef.current;
+    if (!list || index < 0 || index >= ayahs.length) return;
+    try {
+      list.scrollToIndex({ index, animated, viewPosition: 0.15 });
+    } catch {
+      list.scrollToOffset({ offset: Math.max(0, index * 220), animated });
     }
-  }, [initialAyah, ayahs]);
+  }, [ayahs]);
 
   useEffect(() => {
-    if (initialAyah || !listRef.current || ayahs.length === 0) return;
+    if (!initialAyah || ayahs.length === 0) return;
+    const idx = ayahs.findIndex((a) => a.ayah === initialAyah);
+    if (idx < 0) return;
+    const tid = setTimeout(() => scrollToAyahIndex(idx, true), 300);
+    return () => clearTimeout(tid);
+  }, [initialAyah, ayahs, scrollToAyahIndex]);
+
+  useEffect(() => {
+    if (initialAyah || ayahs.length === 0) return;
     if (lastReading.sid !== surahId || lastReading.ay <= 0) return;
     const idx = ayahs.findIndex((a) => a.ayah === lastReading.ay);
-    if (idx >= 0) {
-      setTimeout(() => listRef.current?.scrollToIndex({ index: idx, animated: false }), 400);
-    }
-  }, [initialAyah, ayahs, surahId, lastReading.sid, lastReading.ay]);
+    if (idx < 0) return;
+    const tid = setTimeout(() => scrollToAyahIndex(idx, false), 400);
+    return () => clearTimeout(tid);
+  }, [initialAyah, ayahs, surahId, lastReading.sid, lastReading.ay, scrollToAyahIndex]);
 
   useEffect(() => {
     let cancelled = false;
     setAyahTranslitLatin({});
+    if (!Number.isFinite(surahId) || surahId < 1 || surahId > 114) return;
     void (async () => {
       try {
         const map = await fetchTransliterationLatinByAyahForChapter(surahId);
@@ -560,7 +595,7 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
           ))}
         </View>
       </View>
-      <FlashList
+      <FlatList
         ref={listRef}
         style={styles.list}
         data={ayahs}
@@ -584,6 +619,16 @@ export function SurahScreen({ route, navigation }: { route: any; navigation: any
         }}
         onViewableItemsChanged={viewabilityConfigCallbackPairs[0].onViewableItemsChanged}
         viewabilityConfig={viewabilityConfigCallbackPairs[0].viewabilityConfig}
+        onScrollToIndexFailed={({ index }) => {
+          requestAnimationFrame(() => {
+            listRef.current?.scrollToOffset({
+              offset: Math.max(0, index * 200),
+              animated: false,
+            });
+          });
+        }}
+        keyboardShouldPersistTaps="handled"
+        removeClippedSubviews={false}
       />
 
       <Modal visible={!!noteModal} transparent animationType="fade">

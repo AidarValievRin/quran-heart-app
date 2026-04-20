@@ -160,6 +160,11 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   const entered = useSharedValue(0);
   const pinchScale = useSharedValue(1);
   const savedPinch = useSharedValue(1);
+  /** Pan offset when zoomed in (screen px). */
+  const panX = useSharedValue(0);
+  const panY = useSharedValue(0);
+  const panStartX = useSharedValue(0);
+  const panStartY = useSharedValue(0);
   /** Block tap/long-press while pinch is active to avoid gesture conflicts / crashes. */
   const isPinching = useSharedValue(0);
 
@@ -183,6 +188,8 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   useEffect(() => {
     pinchScale.value = 1;
     savedPinch.value = 1;
+    panX.value = 0;
+    panY.value = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomResetRevision]);
 
@@ -212,6 +219,8 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
       if (v < 1.04) {
         pinchScale.value = withSpring(1, { damping: 18, stiffness: 220 });
         savedPinch.value = 1;
+        panX.value = withSpring(0, { damping: 18, stiffness: 220 });
+        panY.value = withSpring(0, { damping: 18, stiffness: 220 });
       } else if (v > 3.1) {
         pinchScale.value = withSpring(3.1, { damping: 16, stiffness: 200 });
         savedPinch.value = 3.1;
@@ -227,26 +236,63 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
       }
     });
 
-  const tapGesture = Gesture.Tap()
-    .maxDuration(400)
-    .onEnd((e) => {
+  const panGesture = Gesture.Pan()
+    .maxPointers(1)
+    .onBegin(() => {
+      'worklet';
+      panStartX.value = panX.value;
+      panStartY.value = panY.value;
+    })
+    .onUpdate((ev) => {
       'worklet';
       if (isPinching.value) return;
-      runOnJS(handleTap)(e.x, e.y);
+      const s = pinchScale.value;
+      if (s <= 1.02) return;
+      let nx = panStartX.value + ev.translationX;
+      let ny = panStartY.value + ev.translationY;
+      const limitX = Math.max(0, ((s - 1) * width) / 2);
+      const limitY = Math.max(0, ((s - 1) * canvasH) / 2);
+      nx = Math.max(-limitX, Math.min(limitX, nx));
+      ny = Math.max(-limitY, Math.min(limitY, ny));
+      panX.value = nx;
+      panY.value = ny;
+    });
+
+  const tapGesture = Gesture.Tap()
+    .maxDuration(400)
+    .onEnd((ev) => {
+      'worklet';
+      if (isPinching.value) return;
+      const p = Number.isFinite(pinchScale.value) ? pinchScale.value : 1;
+      const b = Number.isFinite(beat.value) ? beat.value : 1;
+      const ent = Number.isFinite(entered.value) ? entered.value : 1;
+      const raw = p * b * interpolate(ent, [0, 1], [0.88, 1]);
+      const safe = Number.isFinite(raw) ? Math.max(0.1, Math.min(4, raw)) : 1;
+      const lx = (ev.x - panX.value) / safe;
+      const ly = (ev.y - panY.value) / safe;
+      runOnJS(handleTap)(lx, ly);
     });
 
   const longPressGesture = Gesture.LongPress()
     .minDuration(500)
-    .onStart((e) => {
+    .onStart((ev) => {
       'worklet';
       if (isPinching.value) return;
-      runOnJS(handleLongPress)(e.x, e.y);
+      const p = Number.isFinite(pinchScale.value) ? pinchScale.value : 1;
+      const b = Number.isFinite(beat.value) ? beat.value : 1;
+      const ent = Number.isFinite(entered.value) ? entered.value : 1;
+      const raw = p * b * interpolate(ent, [0, 1], [0.88, 1]);
+      const safe = Number.isFinite(raw) ? Math.max(0.1, Math.min(4, raw)) : 1;
+      const lx = (ev.x - panX.value) / safe;
+      const ly = (ev.y - panY.value) / safe;
+      runOnJS(handleLongPress)(lx, ly);
     });
 
   const flingLeft = Gesture.Fling()
     .direction(Directions.LEFT)
     .onEnd(() => {
       'worklet';
+      if (pinchScale.value > 1.05) return;
       runOnJS(onCycleColorMode)(1);
     });
 
@@ -254,11 +300,13 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
     .direction(Directions.RIGHT)
     .onEnd(() => {
       'worklet';
+      if (pinchScale.value > 1.05) return;
       runOnJS(onCycleColorMode)(-1);
     });
 
   const composed = Gesture.Simultaneous(
     pinchGesture,
+    panGesture,
     Gesture.Exclusive(longPressGesture, tapGesture, flingLeft, flingRight)
   );
 
@@ -270,20 +318,35 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
     const safe = Number.isFinite(raw) ? Math.max(0.1, Math.min(4, raw)) : 1;
     return {
       opacity: interpolate(e, [0, 1], [0, 1]),
-      transform: [{ scale: safe }],
+      transform: [
+        { translateX: panX.value },
+        { translateY: panY.value },
+        { scale: safe },
+      ],
     };
   });
 
   return (
     <GestureDetector gesture={composed}>
-      <AnimatedView style={[styles.wrap, shellStyle]}>
-        <View style={{ width, height: canvasH }}>
-          <Svg width={width} height={canvasH}>
+      <View style={[styles.clip, { width, height: canvasH }]}>
+        <AnimatedView style={[styles.wrap, shellStyle]}>
+          <View style={{ width, height: canvasH }}>
+            <Svg width={width} height={canvasH}>
             <Defs>
               <ClipPath id="heartClip">
                 <Path d={outlineD} />
               </ClipPath>
             </Defs>
+
+            {/* Silhouette under cells so anatomical strokes do not cover labels */}
+            <Path
+              d={outlineD}
+              fill="none"
+              stroke={themeColors.border}
+              strokeOpacity={0.35}
+              strokeWidth={1}
+              pointerEvents="none"
+            />
 
             <G clipPath="url(#heartClip)">
               {polygons.map((poly, index) => {
@@ -313,14 +376,14 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
                       stroke={isActive || isPressed ? themeColors.accentGold : themeColors.border}
                       strokeWidth={isActive ? 1.5 : isPressed ? 1.2 : 0.5}
                     />
-                    {fontsLoaded && side >= 10 ? (
+                    {side >= 10 ? (
                       <>
                         <SvgText
                           x={cx}
                           y={cy - secSize * 0.6}
                           fill={themeColors.textPrimary}
                           fontSize={arabicSize}
-                          fontFamily="Amiri_700Bold"
+                          fontFamily={fontsLoaded ? 'Amiri_700Bold' : undefined}
                           textAnchor="middle"
                           pointerEvents="none"
                         >
@@ -331,7 +394,7 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
                           y={cy + arabicSize * 0.6}
                           fill={themeColors.textSecondary}
                           fontSize={secSize}
-                          fontFamily="Amiri_400Regular"
+                          fontFamily={fontsLoaded ? 'Amiri_400Regular' : undefined}
                           textAnchor="middle"
                           pointerEvents="none"
                         >
@@ -343,22 +406,15 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
                 );
               })}
             </G>
-
-            {/* Outline rendered on top of cells */}
-            <Path
-              d={outlineD}
-              fill="none"
-              stroke={themeColors.textPrimary}
-              strokeWidth={1.5}
-              pointerEvents="none"
-            />
           </Svg>
         </View>
       </AnimatedView>
+      </View>
     </GestureDetector>
   );
 };
 
 const styles = StyleSheet.create({
+  clip: { overflow: 'hidden', alignSelf: 'center' },
   wrap: { alignItems: 'center', justifyContent: 'center' },
 });
