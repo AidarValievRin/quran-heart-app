@@ -187,18 +187,21 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
   }, [zoomResetRevision]);
 
   // ─── Gestures ─────────────────────────────────────────────────────────────
-  const clamp = (v: number) => Math.min(3.25, Math.max(1, v));
-
   const pinchGesture = Gesture.Pinch()
     .onBegin(() => {
+      'worklet';
       isPinching.value = 1;
     })
     .onUpdate((e) => {
+      'worklet';
       const s = e.scale;
       if (typeof s !== 'number' || !Number.isFinite(s) || s <= 0) return;
-      pinchScale.value = clamp(savedPinch.value * s);
+      const base = Number.isFinite(savedPinch.value) ? savedPinch.value : 1;
+      const next = base * s;
+      pinchScale.value = Math.min(3.25, Math.max(1, next));
     })
     .onEnd(() => {
+      'worklet';
       const v = pinchScale.value;
       if (!Number.isFinite(v)) {
         pinchScale.value = 1;
@@ -215,6 +218,7 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
       }
     })
     .onFinalize(() => {
+      'worklet';
       isPinching.value = 0;
       const v = pinchScale.value;
       if (!Number.isFinite(v)) {
@@ -241,23 +245,34 @@ export const HeartMosaic: React.FC<HeartMosaicProps> = ({
 
   const flingLeft = Gesture.Fling()
     .direction(Directions.LEFT)
-    .onEnd(() => { runOnJS(onCycleColorMode)(1); });
+    .onEnd(() => {
+      'worklet';
+      runOnJS(onCycleColorMode)(1);
+    });
 
   const flingRight = Gesture.Fling()
     .direction(Directions.RIGHT)
-    .onEnd(() => { runOnJS(onCycleColorMode)(-1); });
+    .onEnd(() => {
+      'worklet';
+      runOnJS(onCycleColorMode)(-1);
+    });
 
   const composed = Gesture.Simultaneous(
     pinchGesture,
     Gesture.Exclusive(longPressGesture, tapGesture, flingLeft, flingRight)
   );
 
-  const shellStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(entered.value, [0, 1], [0, 1]),
-    transform: [
-      { scale: pinchScale.value * beat.value * interpolate(entered.value, [0, 1], [0.88, 1]) },
-    ],
-  }));
+  const shellStyle = useAnimatedStyle(() => {
+    const p = Number.isFinite(pinchScale.value) ? pinchScale.value : 1;
+    const b = Number.isFinite(beat.value) ? beat.value : 1;
+    const e = Number.isFinite(entered.value) ? entered.value : 1;
+    const raw = p * b * interpolate(e, [0, 1], [0.88, 1]);
+    const safe = Number.isFinite(raw) ? Math.max(0.1, Math.min(4, raw)) : 1;
+    return {
+      opacity: interpolate(e, [0, 1], [0, 1]),
+      transform: [{ scale: safe }],
+    };
+  });
 
   return (
     <GestureDetector gesture={composed}>

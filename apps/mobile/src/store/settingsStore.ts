@@ -80,6 +80,13 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'quran-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      // Old persisted state may lack newer fields (e.g. profileDisplayName).
+      // Merge with current defaults so destructured values are never undefined.
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<SettingsState> | null | undefined ?? {}),
+      }),
     }
   )
 );

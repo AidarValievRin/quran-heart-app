@@ -1,76 +1,64 @@
 import { voronoi } from 'd3-voronoi';
+import { HEART_PATH_NORMALIZED, HEART_PATH_POLYGON } from './anatomicalHeartPath';
+
+/** Point-in-polygon test using the sampled outline of the real SVG silhouette. */
+function pointInPolygon(nx: number, ny: number, poly: readonly [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0];
+    const yi = poly[i][1];
+    const xj = poly[j][0];
+    const yj = poly[j][1];
+    const intersect =
+      yi > ny !== yj > ny &&
+      nx < ((xj - xi) * (ny - yi)) / (yj - yi + 1e-12) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
 
 /** Normalized (0-1) point inside the anatomical heart shape check. */
 function isInsideAnatomicalHeart(nx: number, ny: number): boolean {
-  // Main body — large ellipse covering ventricles
-  const bx = (nx - 0.49) / 0.41;
-  const by = (ny - 0.60) / 0.38;
-  const inBody = bx * bx + by * by < 1;
-
-  // Left bump — right atrium area (top-left)
-  const lx = (nx - 0.31) / 0.13;
-  const ly = (ny - 0.16) / 0.13;
-  const inLeftBump = lx * lx + ly * ly < 1;
-
-  // Right bump — pulmonary/aortic area (top-right)
-  const rx = (nx - 0.63) / 0.12;
-  const ry = (ny - 0.13) / 0.12;
-  const inRightBump = rx * rx + ry * ry < 1;
-
-  // Connector strip between the two bumps (top center)
-  const inConnector =
-    ny >= 0.06 && ny <= 0.20 && nx >= 0.38 && nx <= 0.54;
-
-  // Exclude very top gap between bumps
-  const inTopGap = ny < 0.06 && nx > 0.43 && nx < 0.54;
-
-  // Exclude bottom below apex
-  const belowApex = ny > 0.98;
-
-  return (inBody || inLeftBump || inRightBump || inConnector) && !inTopGap && !belowApex;
+  return pointInPolygon(nx, ny, HEART_PATH_POLYGON);
 }
 
-/** SVG path tracing an anatomical (human) heart — frontal view.
- *  Two atrial bumps at top, right ventricle bulges right, apex points down-left. */
+/** SVG path tracing the anatomical heart silhouette (extracted from reference SVG).
+ *  Scales the normalized 0..1 path to the canvas (w, h). Cached per (w, h). */
+let cachedKey = '';
+let cachedPath = '';
 export function heartOutlinePath(w: number, h: number): string {
-  const p = (nx: number, ny: number) =>
-    `${(nx * w).toFixed(2)},${(ny * h).toFixed(2)}`;
+  const key = `${w}x${h}`;
+  if (key === cachedKey) return cachedPath;
 
-  return [
-    `M ${p(0.38, 0.07)}`,
-    // Left bump (right atrium / aorta area)
-    `C ${p(0.34, 0.02)} ${p(0.24, 0.02)} ${p(0.21, 0.08)}`,
-    `C ${p(0.18, 0.13)} ${p(0.18, 0.21)} ${p(0.23, 0.26)}`,
-    `C ${p(0.27, 0.29)} ${p(0.33, 0.30)} ${p(0.38, 0.28)}`,
-    // Down left side (right ventricle outer wall)
-    `C ${p(0.28, 0.33)} ${p(0.17, 0.40)} ${p(0.11, 0.50)}`,
-    `C ${p(0.06, 0.58)} ${p(0.06, 0.67)} ${p(0.10, 0.75)}`,
-    `C ${p(0.13, 0.82)} ${p(0.20, 0.88)} ${p(0.28, 0.91)}`,
-    // Toward apex
-    `C ${p(0.33, 0.94)} ${p(0.38, 0.97)} ${p(0.42, 0.985)}`,
-    // Apex (bottom point, slightly left of center)
-    `C ${p(0.45, 0.998)} ${p(0.48, 0.997)} ${p(0.51, 0.985)}`,
-    // Right side going up from apex (left ventricle outer wall)
-    `C ${p(0.57, 0.96)} ${p(0.65, 0.90)} ${p(0.72, 0.82)}`,
-    `C ${p(0.80, 0.74)} ${p(0.87, 0.64)} ${p(0.89, 0.53)}`,
-    `C ${p(0.91, 0.42)} ${p(0.88, 0.31)} ${p(0.81, 0.26)}`,
-    // Right bump base (left atrium / pulmonary trunk)
-    `C ${p(0.76, 0.22)} ${p(0.70, 0.22)} ${p(0.67, 0.25)}`,
-    // Up to right bump peak
-    `C ${p(0.72, 0.17)} ${p(0.74, 0.08)} ${p(0.69, 0.04)}`,
-    `C ${p(0.64, 0.00)} ${p(0.55, 0.01)} ${p(0.52, 0.07)}`,
-    // Cross the inter-ventricular groove back to left bump
-    `C ${p(0.50, 0.09)} ${p(0.47, 0.09)} ${p(0.44, 0.08)}`,
-    `C ${p(0.42, 0.07)} ${p(0.40, 0.07)} ${p(0.38, 0.07)}`,
-    'Z',
-  ].join(' ');
+  const parts = HEART_PATH_NORMALIZED.split(' ');
+  const out: string[] = [];
+  let coordIdx = 0;
+  for (const tok of parts) {
+    if (tok === '') continue;
+    if (/^[A-Za-z]$/.test(tok)) {
+      out.push(tok);
+      coordIdx = 0;
+      continue;
+    }
+    const n = parseFloat(tok);
+    if (Number.isNaN(n)) {
+      out.push(tok);
+      continue;
+    }
+    const scaled = coordIdx % 2 === 0 ? n * w : n * h;
+    out.push(scaled.toFixed(2));
+    coordIdx++;
+  }
+  cachedKey = key;
+  cachedPath = out.join(' ');
+  return cachedPath;
 }
 
-/** 114 Voronoi sites distributed inside the anatomical heart.
+/** 114 Voronoi sites distributed inside the anatomical heart silhouette.
  *  Sites are sorted top→bottom so surah 1 maps to the top and 114 to the apex. */
 export function generateSurahSites(w: number, h: number): [number, number][] {
   const COLS = 30;
-  const ROWS = 38;
+  const ROWS = 40;
   const candidates: [number, number][] = [];
 
   for (let row = 0; row < ROWS; row++) {
@@ -110,7 +98,7 @@ export function generateSurahSites(w: number, h: number): [number, number][] {
     return pickEvenly(candidates);
   }
 
-  // Fallback: add extra points in a coarser grid if somehow < 114
+  // Fallback: denser grid if somehow < 114 candidates.
   const extra: [number, number][] = [];
   for (let row = 0; row < ROWS * 2; row++) {
     for (let col = 0; col < COLS * 2; col++) {

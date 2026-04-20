@@ -22,8 +22,8 @@ export function ProfileScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { totalReadSurahs, totalMemorizedAyahs } = useProgressStore();
-  const profileDisplayName = useSettingsStore((s) => s.profileDisplayName);
-  const profileOrnamentId = useSettingsStore((s) => s.profileOrnamentId);
+  const profileDisplayName = useSettingsStore((s) => s.profileDisplayName) ?? '';
+  const profileOrnamentId = useSettingsStore((s) => s.profileOrnamentId) ?? 0;
   const streakDays = useActivityStore((s) => s.streakDays);
   const quranMinutesApprox = useActivityStore((s) => s.quranMinutesApprox);
   const lastRead = useReadingProgressStore((s) => ({ sid: s.lastSurahId, ay: s.lastAyah }));
